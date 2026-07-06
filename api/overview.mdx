@@ -1,7 +1,7 @@
 ---
-title: "BaBel+ REST API reference"
+title: "BaBel+ REST API overview — endpoints and conventions"
 sidebarTitle: "Overview"
-description: "BaBel+ exposes a JSON REST API via Hono on port 3000. All endpoints use JSON request and response bodies. No authentication is required in the current version."
+description: "BaBel+ REST API built with Hono. All endpoints live under /api, return JSON, and require no authentication in the current server version."
 ---
 
 BaBel+ provides a JSON REST API built with the [Hono](https://hono.dev) framework. The server listens on port **3000** by default and serves every endpoint under the `/api` path prefix. All request and response bodies are JSON (`Content-Type: application/json`). In the current version no authentication is required — any client with network access can read and write data.

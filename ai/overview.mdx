@@ -4,7 +4,7 @@ sidebarTitle: "AI Overview"
 description: "BaBel+ uses Groq's llama-3.1-8b-instant model to classify content, extract metadata, and suggest semantic relations to your existing nodes."
 ---
 
-BaBel+'s AI layer uses Groq's `llama-3.1-8b-instant` model via the OpenAI-compatible API. When you describe a book, film, article, or other content item in plain text, the model extracts structured metadata — title, type, description, tags, author, and year — and suggests which nodes already in your graph it should be connected to. The result is a typed node and a set of weighted semantic relations, ready to be committed to your database.
+BaBel+'s AI layer uses Groq's `llama-3.1-8b-instant` model via the OpenAI-compatible API (`https://api.groq.com/openai/v1`). When you describe a book, film, article, or other content item in plain text, the model extracts structured metadata — title, type, description, tags, author, and year — and suggests which nodes already in your graph it should be connected to. The result is a typed node and a set of weighted semantic relations, ready to be committed to your database.
 
 ## How it works
 
@@ -29,7 +29,7 @@ Every call to `classifyAndSuggest` builds a prompt that contains three pieces of
 
 ## What the model returns
 
-The model is instructed to respond with a single JSON object and nothing else. The expected structure is:
+The model is called with `temperature: 0.3` (low randomness for consistent extraction) and `response_format: { type: 'json_object' }` (enforcing a pure JSON response). It is instructed to respond with a single JSON object and nothing else. The expected structure is:
 
 ```json
 {

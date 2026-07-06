@@ -1,7 +1,7 @@
 ---
-title: "Relations: typed edges between knowledge nodes"
+title: "Relations: typed, weighted edges in your knowledge graph"
 sidebarTitle: "Relations"
-description: "Relations connect nodes with semantic meaning. BaBel+ supports nine directed relation types with configurable weights that control graph layout and AI suggestions."
+description: "BaBel+ relations are directed edges with nine semantic types, per-type weights, a 0.7 visibility threshold, and a suggestion cutoff of 4 for AI Smart Add."
 ---
 
 Relations are the directed edges that give your knowledge graph its meaning. Where a node represents a single piece of content, a relation expresses *how* two nodes are connected — who wrote what, what influenced what, which works share a theme. Every relation has a source node, a target node, a semantic type, and a numeric weight that controls how strongly the two nodes are pulled together in the force simulation.
@@ -52,7 +52,7 @@ BaBel+ ships with nine predefined relation types, each carrying a distinct seman
     **Example:** `[All Quiet on the Western Front] --ocurre_en--> [World War I]`
   </Accordion>
   <Accordion title="similar_a — similar to">
-    Links two thematically or stylistically similar pieces of content. Unlike all other types, `similar_a` is **only valid between nodes of the same type** (libro–libro, pelicula–pelicula, etc.).
+    Links two thematically or stylistically similar pieces of content. By convention, `similar_a` is best used between nodes of the same type (libro–libro, pelicula–pelicula, etc.) to keep similarity comparisons meaningful.
 
     **Example:** `[Dune] --similar_a--> [Foundation]`
   </Accordion>
@@ -130,7 +130,7 @@ The relations API enforces the following rules on every `POST /api/relations` re
 
 <Tabs>
   <Tab title="Self-loop prevention">
-    ```
+    ```text
     sourceId ≠ targetId
     ```
     A node cannot have a relation to itself. The server returns `400 Bad Request` with `"source and target must be different"`.
@@ -143,9 +143,6 @@ The relations API enforces the following rules on every `POST /api/relations` re
   </Tab>
   <Tab title="Weight range">
     `weight` must be a number in the closed interval `[0.0, 1.0]`. Out-of-range values return `400 Bad Request`.
-  </Tab>
-  <Tab title="similar_a constraint">
-    When `type` is `similar_a`, both the source and target node must share the same `type` field (e.g. both `libro`, both `pelicula`). Creating a `similar_a` relation between nodes of different types returns `400 Bad Request`.
   </Tab>
 </Tabs>
 

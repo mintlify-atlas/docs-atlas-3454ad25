@@ -1,5 +1,5 @@
 ---
-title: "Classify: preview AI suggestions without writing to the database"
+title: "Classify: dry-run AI preview without database writes"
 sidebarTitle: "Classify"
 description: "POST /api/ai/classify runs the same AI classification as Smart Add but returns suggestions without creating any nodes or relations in the database."
 ---
@@ -57,7 +57,7 @@ Returns the AI-suggested node and relations. The structure is **identical** to t
 </ResponseField>
 
 <ResponseField name="relations" type="SuggestedRelation[]">
-  Array of relation suggestions from the model. Unlike Smart Add, these are **not validated against the database** — the `targetTitle` values are exactly what the model returned. When you later create the node manually, you will need to resolve each `targetTitle` to an actual node ID.
+  Array of relation suggestions from the model. The model receives the full list of existing nodes from the database when generating these suggestions, so `targetTitle` values are grounded in real node titles. However, unlike Smart Add, the classify endpoint does **not** perform a server-side lookup to resolve `targetTitle` values to node UUIDs — that resolution only happens during Smart Add. When you later create the node manually, you will need to resolve each `targetTitle` to an actual node ID yourself.
 
   <Expandable title="SuggestedRelation fields">
     <ResponseField name="targetTitle" type="string">The exact title string returned by the model. Should match an existing node title.</ResponseField>

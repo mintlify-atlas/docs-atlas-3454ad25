@@ -1,5 +1,5 @@
 ---
-title: "Get started with BaBel+ in five minutes"
+title: "BaBel+ Quickstart: install, configure, and run locally"
 sidebarTitle: "Quickstart"
 description: "Run BaBel+ locally with PostgreSQL and a Groq API key. Covers cloning, environment setup, database migration, and your first node creation."
 ---
@@ -45,6 +45,7 @@ By the end of this guide you will have a fully running local instance of BaBel+ 
     GROQ_API_KEY=gsk_...
     PORT=3000
     CORS_ORIGIN=*
+    JWT_SECRET=change-me-in-production
     NODE_ENV=development
     ```
 
@@ -54,7 +55,12 @@ By the end of this guide you will have a fully running local instance of BaBel+ 
     | `GROQ_API_KEY` | ✅ | Groq API key for AI classification |
     | `PORT` | Optional | HTTP port for the Hono server (default `3000`) |
     | `CORS_ORIGIN` | Optional | Allowed CORS origin (default `*`) |
+    | `JWT_SECRET` | Optional | Secret for auth tokens (defaults to a dev-only fallback; always set in production) |
     | `NODE_ENV` | Optional | Set to `production` when serving the built SPA |
+
+    <Note>
+    **`VITE_API_URL`** — if you need the React client to talk to an API server on a different host, create a `.env` file at the **monorepo root** (not inside `packages/server/`) and set `VITE_API_URL=http://localhost:3000`. In the default local dev setup this is not needed because Vite's dev server already proxies all `/api` requests to `http://localhost:3000` automatically.
+    </Note>
   </Step>
 
   <Step title="Run the development server">
@@ -71,7 +77,7 @@ By the end of this guide you will have a fully running local instance of BaBel+ 
 
     Once both processes are ready you will see output similar to:
 
-    ```
+    ```text
     [server] BaBel+ API running on http://0.0.0.0:3000
     [client]   ➜  Local:   http://localhost:5173/
     ```
@@ -103,7 +109,7 @@ By the end of this guide you will have a fully running local instance of BaBel+ 
     | Field | Type | Values |
     |-------|------|--------|
     | `title` | string | Required. Display name of the node. |
-    | `type` | string | `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego` |
+    | `type` | string | Free-form string. Common values: `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego`, `autor`, `concepto`. |
     | `status` | string | `pendiente`, `en_progreso`, `terminado` |
     | `priority` | string | `baja`, `media`, `alta` |
     | `author` | string | Optional. Author or creator name. |

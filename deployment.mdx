@@ -1,5 +1,5 @@
 ---
-title: "Deploy BaBel+ to Render"
+title: "Deploy BaBel+ to Render with a one-click Blueprint"
 sidebarTitle: "Deployment"
 description: "Deploy BaBel+ to Render using the included render.yaml. Covers the one-click Blueprint deploy, environment variables, and the health check endpoint."
 ---
@@ -133,6 +133,7 @@ You can run BaBel+ on any machine with Node.js ≥ 18 and access to a PostgreSQL
     ```ini
     DATABASE_URL=postgresql://user:password@your-host:5432/babel
     GROQ_API_KEY=gsk_...
+    JWT_SECRET=a-long-random-secret
     NODE_ENV=production
     PORT=3000
     CORS_ORIGIN=https://your-domain.com

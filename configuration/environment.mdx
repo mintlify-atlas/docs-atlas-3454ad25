@@ -1,7 +1,7 @@
 ---
 title: "Environment variables for BaBel+ server configuration"
 sidebarTitle: "Environment"
-description: "Configure BaBel+ with environment variables for the database connection, Groq API key, CORS, port, and JWT secret. Required vs optional variables explained."
+description: "Configure BaBel+ with environment variables covering the database connection, Groq API key, CORS, port, and JWT secret. Required vs optional explained."
 ---
 
 BaBel+'s server reads all configuration exclusively from environment variables, loaded via `dotenv` in development and injected directly by the hosting platform (e.g., Render) in production. To get started locally, copy the example template to create your own env file:
@@ -11,6 +11,8 @@ cp packages/server/.env.example packages/server/.env
 ```
 
 ## `.env.example`
+
+`packages/server/.env.example` covers the optional variables and placeholders for the required ones. Note that `DATABASE_URL` is not included in the example file — you must add it manually since it contains your database credentials.
 
 ```env
 # Required: Groq API key for AI classification features
@@ -33,14 +35,20 @@ JWT_SECRET=
 NODE_ENV=development
 ```
 
+The root `.env.example` (monorepo root) documents the client-side variable `VITE_API_URL` alongside `GROQ_API_KEY` and `JWT_SECRET`. See [VITE_API_URL](#vite_api_url) below for details.
+
 ## Variables
 
 <Note>
-  Only `DATABASE_URL` and `GROQ_API_KEY` are truly required. If either is missing, the server will throw a clear error message at startup and refuse to start — no silent failures.
+  Only `DATABASE_URL` and `GROQ_API_KEY` are truly required. If either is missing, the server throws a descriptive error at startup and refuses to start — no silent failures.
 </Note>
 
 <ParamField path="DATABASE_URL" type="string" required>
-  PostgreSQL connection string used by Drizzle ORM to connect to the database. The server throws `Missing required env DATABASE_URL` on startup if this value is absent.
+  PostgreSQL connection string used by Drizzle ORM to connect to the database. If absent, the server throws:
+
+  ```
+  Missing required env DATABASE_URL. PostgreSQL connection string. Create a free DB at https://render.com or use local postgres
+  ```
 
   ```env
   DATABASE_URL=postgresql://user:password@localhost:5432/babel
@@ -50,7 +58,11 @@ NODE_ENV=development
 </ParamField>
 
 <ParamField path="GROQ_API_KEY" type="string" required>
-  API key for the Groq inference service, used to power AI node classification. The server throws `Missing required env GROQ_API_KEY` on startup if this value is absent.
+  API key for the Groq inference service, used to power AI node classification. If absent, the server throws:
+
+  ```
+  Missing required env GROQ_API_KEY. Get one at https://console.groq.com
+  ```
 
   Obtain a key at [https://console.groq.com](https://console.groq.com).
 
@@ -94,6 +106,14 @@ NODE_ENV=development
 
 <ParamField path="DB_PATH" type="string" default="data/babel.db">
   Legacy path for SQLite storage from an earlier version of BaBel+. This variable is read by `config.ts` but is **unused** in the current PostgreSQL implementation. You can safely omit it.
+</ParamField>
+
+<ParamField path="VITE_API_URL" type="string">
+  **Client-side only — not read by the server.** Set in the monorepo root `.env` or the client package to tell the Vite dev server where to proxy API requests. Defaults to `http://localhost:3000` in local development. In a production Render deployment where the frontend and API share the same domain this variable is not needed.
+
+  ```env
+  VITE_API_URL=http://localhost:3000
+  ```
 </ParamField>
 
 <Warning>

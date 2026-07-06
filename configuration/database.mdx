@@ -146,10 +146,10 @@ Or target the server workspace directly:
 npm run db:migrate -w @babel-plus/server
 ```
 
-Under the hood this runs `drizzle-kit push`, which compares the current schema against the live database and applies any outstanding changes. Migration artifacts (SQL snapshots) are written to `packages/server/drizzle/`.
+Under the hood this runs `drizzle-kit push`, which compares the current schema against the live database and applies any outstanding changes directly. It does **not** write migration files to disk.
 
 <Note>
-  `drizzle-kit push` is a direct schema-push command suited for development and small deployments. It does not produce versioned migration files the way `drizzle-kit generate` + `drizzle-kit migrate` would. If you need auditable, reversible migrations in a team environment, consider switching to the generate/migrate workflow.
+  `drizzle-kit push` is a direct schema-push command suited for development and small deployments. It does not produce versioned migration files the way `drizzle-kit generate` + `drizzle-kit migrate` would. The `out: './drizzle'` directory configured in `drizzle.config.ts` is only used if you run `drizzle-kit generate` separately. If you need auditable, reversible migrations in a team environment, consider switching to the generate/migrate workflow.
 </Note>
 
 ## Seeding

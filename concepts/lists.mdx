@@ -1,7 +1,7 @@
 ---
-title: "Lists: curated, ordered collections of nodes"
+title: "Lists: ordered, rated collections of knowledge nodes"
 sidebarTitle: "Lists"
-description: "Lists let you group nodes into named, ordered collections with per-entry ratings. Use lists to scope the graph view and organize reading queues or watch lists."
+description: "Lists are named, ordered node collections with per-entry ratings and 4-char IDs. Scope the graph to any list to explore a focused knowledge subgraph."
 ---
 
 Lists are named collections that group nodes into an explicit, ordered sequence with an optional per-entry rating. Where the main graph view shows your entire knowledge library at once, a list lets you carve out a focused subset — a reading queue, a film festival watchlist, a semester's course materials — and view it as its own self-contained subgraph.
@@ -24,14 +24,22 @@ export interface List {
 
 ## ListWithNodes
 
-The `GET /api/lists/:id` endpoint returns a richer shape that includes the full node data for every member of the list, augmented with two list-specific fields:
+The `GET /api/lists/:id` endpoint returns a richer shape that includes the full node data for every member of the list, augmented with list-specific fields. The canonical TypeScript type adds `position`:
 
 ```typescript
 export interface ListWithNodes extends List {
-  nodes: (Node & {
-    position:   number        // 0-based integer; determines display order
-    listRating: number | null // per-list rating, independent of the node's own rating
-  })[]
+  nodes: (Node & { position: number })[]
+}
+```
+
+At runtime the API also appends `listRating: number | null` to each node entry — sourced from the `list_nodes.rating` column — giving each entry the following effective shape:
+
+```typescript
+// Runtime shape returned by GET /api/lists/:id
+{
+  ...Node,
+  position:   number        // 0-based integer; determines display order
+  listRating: number | null // per-list rating, stored in list_nodes.rating
 }
 ```
 
@@ -95,7 +103,7 @@ Nodes are returned pre-sorted by `position` ascending, so consumers do not need 
 
 Append `?listId=<id>` to the graph URL to display only the nodes belonging to that list:
 
-```
+```text
 /graph?listId=x7k2
 ```
 

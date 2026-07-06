@@ -1,7 +1,7 @@
 ---
-title: "BaBel+: Graph-based personal knowledge library"
+title: "BaBel+: Self-hosted TypeScript knowledge graph app"
 sidebarTitle: "Introduction"
-description: "BaBel+ is a self-hosted knowledge graph for cataloging books, films, articles, and more as nodes connected by typed semantic relations."
+description: "BaBel+ is a self-hosted TypeScript knowledge graph. Catalog books, films, articles, and concepts as nodes connected by typed semantic relations."
 ---
 
 BaBel+ is a self-hosted TypeScript monorepo that turns your personal reading list, film collection, and research materials into a living knowledge graph. It pairs a **Hono API server** with a **React 19 SPA** so you can capture any piece of content, tag it with rich metadata, and then draw explicit, typed connections between items — surfacing relationships that a flat list or folder structure could never express.
@@ -12,16 +12,18 @@ Every item in BaBel+ is a **node**: a discrete unit of knowledge with a title, t
 
 ### Node types
 
-BaBel+ recognises six content types out of the box:
+The `type` field is a free-form text string — you can use any value that fits your knowledge graph. The seed database ships with examples across several categories:
 
-| Type | Description |
-|------|-------------|
+| Type | Seed examples |
+|------|---------------|
 | `libro` | Books and long-form written works |
 | `pelicula` | Films and feature-length video works |
 | `articulo` | Articles, essays, and academic papers |
 | `video` | Short-form video content and lectures |
 | `curso` | Courses and structured learning programmes |
 | `videojuego` | Video games and interactive media |
+| `autor` / `director` / `filosofo` | People (authors, directors, thinkers) |
+| `concepto` / `escuela` / `evento` | Abstract ideas, intellectual movements, historical events |
 
 ### Relation types
 
@@ -38,6 +40,10 @@ Nine directed relation types describe the semantic links between nodes:
 | `inspiro` | Source inspired the target |
 | `ocurre_en` | Source is set in or takes place in the target |
 | `similar_a` | Source is thematically or formally similar to the target |
+
+## Lists
+
+BaBel+ lets you organise nodes into named **lists** — ordered, curated collections separate from the graph view. Lists are first-class resources with their own `/api/lists` endpoints, and each list-node membership can carry an independent numeric rating. On first start, the server automatically creates a *"Todos los nodos"* list containing all seeded nodes, so the list view is populated immediately.
 
 ## AI-powered classification
 

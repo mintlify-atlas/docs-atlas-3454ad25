@@ -1,5 +1,5 @@
 ---
-title: "REST API endpoints for AI classification — BaBel+ API reference"
+title: "AI classification endpoints — BaBel+ API reference"
 sidebarTitle: "AI"
 description: "POST /api/ai/classify and POST /api/ai/smart-add classify free text using Groq's llama-3.1-8b-instant and optionally persist the results."
 ---
@@ -135,8 +135,8 @@ Same as `POST /api/ai/classify`:
 
 Returns `201 Created` with the persisted node and the relations that were successfully created.
 
-<ResponseField name="node" type="Node">
-  The fully persisted `Node` object, including its generated UUID, `createdAt`, `updatedAt`, and all database fields (e.g., `localFile`, `rating`).
+<ResponseField name="node" type="object">
+  The persisted node object written to the database, including its generated UUID, `createdAt`, `updatedAt`, and all database fields (e.g., `localFile`). Note that `tags` is serialized as a JSON string (e.g., `"[\"marxismo\",\"economía\"]"`) or `null` — not an array.
 </ResponseField>
 
 <ResponseField name="relations" type="object[]">
@@ -190,7 +190,6 @@ curl -X POST http://localhost:3000/api/ai/smart-add \
     "year": 1867,
     "link": null,
     "localFile": null,
-    "rating": null,
     "createdAt": "2024-01-15T10:30:00.000Z",
     "updatedAt": "2024-01-15T10:30:00.000Z"
   },

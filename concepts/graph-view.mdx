@@ -36,13 +36,13 @@ The graph view is BaBel+'s interactive canvas for exploring your knowledge netwo
 | Shape | Meaning |
 |---|---|
 | **Filled circle** (radius 14 px) | Node status is `pendiente`, `en_progreso`, or `abandonado` |
-| **Small red square** (6 × 6 px, color `#e53935`) | Node status is `terminado` |
+| **Small red square** (12 × 12 px, color `#e53935`) | Node status is `terminado` |
 
 Completed nodes render as small squares so they visually recede from the active parts of your graph. This lets in-progress content stay visually prominent even in large libraries.
 
 ### Node colors by type
 
-```
+```text
 libro      →  #4a90d9  (steel blue)
 pelicula   →  #50c878  (emerald green)
 articulo   →  #4a90d9  (steel blue)
@@ -103,7 +103,7 @@ The simulation runs indefinitely while the graph view is mounted. Dragging a nod
 
 Append `?listId=<id>` to the graph URL to restrict the canvas to the nodes belonging to a specific list:
 
-```
+```text
 /graph?listId=x7k2
 ```
 

@@ -1,7 +1,7 @@
 ---
 title: "Nodes: the building blocks of your knowledge graph"
 sidebarTitle: "Nodes"
-description: "Nodes represent individual pieces of content — books, films, articles, videos, courses, and video games. Learn the fields, types, and statuses that every node carries."
+description: "Nodes are BaBel+'s atomic content units. Learn all six node types, every metadata field, the four statuses, and how they render in the graph canvas."
 ---
 
 Nodes are the atomic units of BaBel+. Every piece of content you want to track — a novel you're reading, a film you want to watch, a course you are enrolled in — lives in the graph as a single node. Nodes carry metadata like author, year, tags, and a personal rating, and they connect to each other through typed relations to form your knowledge network.
@@ -89,7 +89,7 @@ export interface Node {
 
 A node's `status` describes where it sits in your personal workflow. The typical progression moves left to right:
 
-```
+```text
 pendiente  ──►  en_progreso  ──►  terminado
                      │
                      └──────────►  abandonado
@@ -113,11 +113,11 @@ Node appearance in the graph view is determined by two properties: **shape** and
 ### Shapes
 
 - **Circle** — any node whose status is `pendiente`, `en_progreso`, or `abandonado`. Radius is 14 px in world space.
-- **Small red square** — any node whose status is `terminado`. The square is 6 × 6 px in world space and filled with `#e53935`. This makes completed content visually recede so in-progress work stays prominent.
+- **Small red square** — any node whose status is `terminado`. The square is 12 × 12 px in world space (drawn as `radius * 2` on each side, where `radius = 6`) and filled with `#e53935`. This makes completed content visually recede so in-progress work stays prominent.
 
 ### Colors by type
 
-```
+```text
 libro      →  #4a90d9  (steel blue)
 pelicula   →  #50c878  (emerald green)
 articulo   →  #4a90d9  (steel blue, same as libro)

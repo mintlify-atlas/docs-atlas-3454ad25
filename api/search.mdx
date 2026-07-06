@@ -1,5 +1,5 @@
 ---
-title: "GET /api/search — full-text node search"
+title: "GET /api/search — BaBel+ full-text node search API"
 sidebarTitle: "Search"
 description: "Search nodes by title, description, author, and tags with a single query string. Returns all matching nodes using PostgreSQL ILIKE pattern matching."
 ---
@@ -20,7 +20,7 @@ The search endpoint performs a case-insensitive full-text search across node con
 
 The server builds an `OR` condition across four columns:
 
-```
+```text
 title        ILIKE '%<query>%'
 description  ILIKE '%<query>%'
 author       ILIKE '%<query>%'

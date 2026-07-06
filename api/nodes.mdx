@@ -1,7 +1,7 @@
 ---
 title: "REST API endpoints for nodes — BaBel+ API reference"
 sidebarTitle: "Nodes"
-description: "CRUD endpoints for BaBel+ nodes. Create, list, retrieve, update, and delete content items with type, status, priority, tags, author, year, and rating fields."
+description: "CRUD endpoints for BaBel+ nodes: list, retrieve, create, update, and delete content items with type, status, priority, tags, and author fields."
 ---
 
 Nodes are the primary resource in BaBel+. They represent individual content items — books, films, articles, videos, courses, or video games — and carry rich metadata such as status, priority, tags, author, and year. Every other resource (relations, list memberships) references nodes by their UUID `id`. These endpoints let you create, retrieve, update, and delete nodes programmatically.
@@ -147,8 +147,8 @@ Create a new node. The server auto-generates a UUID `id` and sets both `createdA
   Display title of the node. Maximum 500 characters. Whitespace is trimmed automatically.
 </ParamField>
 
-<ParamField body="type" type="NodeType" required>
-  Content type. Must be one of: `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego`.
+<ParamField body="type" type="NodeType" optional>
+  Content type. If provided, must be one of: `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego`.
 </ParamField>
 
 <ParamField body="description" type="string" optional>
@@ -181,10 +181,6 @@ Create a new node. The server auto-generates a UUID `id` and sets both `createdA
 
 <ParamField body="localFile" type="string" optional>
   Path to a local file on the server's filesystem. Maximum 500 characters.
-</ParamField>
-
-<ParamField body="rating" type="number" optional>
-  Numeric rating. No enforced range — use any integer scale that suits your workflow.
 </ParamField>
 
 ### Response
