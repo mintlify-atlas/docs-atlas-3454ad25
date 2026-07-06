@@ -1,0 +1,113 @@
+---
+title: "BaBel+ REST API reference"
+sidebarTitle: "Overview"
+description: "BaBel+ exposes a JSON REST API via Hono on port 3000. All endpoints use JSON request and response bodies. No authentication is required in the current version."
+---
+
+BaBel+ provides a JSON REST API built with the [Hono](https://hono.dev) framework. The server listens on port **3000** by default and serves every endpoint under the `/api` path prefix. All request and response bodies are JSON (`Content-Type: application/json`). In the current version no authentication is required — any client with network access can read and write data.
+
+## Base URL
+
+| Environment | Base URL |
+|-------------|----------|
+| Development | `http://localhost:3000/api` |
+| Production  | `https://<your-domain>/api` |
+
+Replace `<your-domain>` with the hostname of your deployed instance (e.g. a Render service URL).
+
+## Authentication
+
+Authentication is **not yet implemented**. The server reads a `JWT_SECRET` environment variable and the configuration layer is in place, but no auth middleware is currently applied to any route. Every request is accepted without credentials.
+
+<Note>
+  Because there is no access control, avoid exposing the server on a public network without an external firewall or reverse proxy until auth middleware is added.
+</Note>
+
+## Content-Type
+
+Every request that includes a body **must** set the `Content-Type: application/json` header. Requests with a body that omit this header may be rejected or parsed incorrectly by the Hono runtime.
+
+```bash
+curl -X POST http://localhost:3000/api/nodes \
+  -H "Content-Type: application/json" \
+  -d '{"title": "My node", "type": "libro"}'
+```
+
+## Error format
+
+All error responses return a JSON object with a single `error` key and an appropriate HTTP status code.
+
+```json
+{
+  "error": "description of what went wrong"
+}
+```
+
+## Common status codes
+
+| Code | Meaning |
+|------|---------|
+| `200` | Success — GET and PUT requests that find the target resource |
+| `201` | Created — POST requests that successfully create a new resource |
+| `400` | Validation error — missing required fields, out-of-range values, or invalid enum values |
+| `404` | Not found — the requested resource does not exist |
+| `409` | Conflict — for example, a node that is already a member of a list |
+| `500` | Server error — unhandled exceptions, including failures from the Groq AI API |
+
+## Health check
+
+```http
+GET /api/health
+```
+
+Returns `{ "status": "ok" }` when the server is up. This endpoint is registered as the Render health check URL and requires no body or headers.
+
+```json
+{ "status": "ok" }
+```
+
+## Endpoints summary
+
+| Resource | Method | Path | Description |
+|----------|--------|------|-------------|
+| Nodes | `GET` | `/api/nodes` | List all nodes (filterable by `type` and `status`) |
+| Nodes | `POST` | `/api/nodes` | Create a new node |
+| Nodes | `GET` | `/api/nodes/:id` | Get a single node |
+| Nodes | `PUT` | `/api/nodes/:id` | Partially update a node |
+| Nodes | `DELETE` | `/api/nodes/:id` | Delete a node (cascades to relations and list memberships) |
+| Relations | `GET` | `/api/relations` | List all relations |
+| Relations | `POST` | `/api/relations` | Create a relation between two nodes |
+| Relations | `DELETE` | `/api/relations/:id` | Delete a relation |
+| Search | `GET` | `/api/search?q=` | Full-text search across nodes |
+| AI | `POST` | `/api/ai/classify` | Classify a text snippet into a node type |
+| AI | `POST` | `/api/ai/smart-add` | Extract and create a node from free-form text |
+| Lists | `GET` | `/api/lists` | List all lists |
+| Lists | `POST` | `/api/lists` | Create a new list |
+| Lists | `GET` | `/api/lists/:id` | Get a list with its ordered node members |
+| Lists | `PUT` | `/api/lists/:id` | Update list name or description |
+| Lists | `DELETE` | `/api/lists/:id` | Delete a list |
+| List nodes | `POST` | `/api/lists/:id/nodes` | Add a node to a list |
+| List nodes | `DELETE` | `/api/lists/:id/nodes/:nodeId` | Remove a node from a list |
+| List rating | `PUT` | `/api/lists/:id/nodes/:nodeId/rating` | Set a node's rating within a list |
+| List reorder | `PUT` | `/api/lists/:id/nodes/reorder` | Reorder nodes in a list |
+| Health | `GET` | `/api/health` | Server health check |
+
+## Explore by resource
+
+<CardGroup cols={2}>
+  <Card title="Nodes" icon="circle-nodes" href="/api/nodes">
+    Create, retrieve, update, and delete content items — the primary resource in BaBel+.
+  </Card>
+  <Card title="Relations" icon="arrow-right-arrow-left" href="/api/relations">
+    Link nodes together with typed, weighted directional edges.
+  </Card>
+  <Card title="Lists" icon="list" href="/api/lists">
+    Curate ordered collections of nodes with per-entry ratings and custom sort order.
+  </Card>
+  <Card title="Search" icon="magnifying-glass" href="/api/search">
+    Query nodes by title, description, author, tags, and more with a single parameter.
+  </Card>
+  <Card title="AI" icon="brain" href="/api/ai">
+    Classify free-form text and auto-populate new nodes using the Groq language model.
+  </Card>
+</CardGroup>

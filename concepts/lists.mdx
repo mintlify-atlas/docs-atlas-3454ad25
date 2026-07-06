@@ -1,0 +1,126 @@
+---
+title: "Lists: curated, ordered collections of nodes"
+sidebarTitle: "Lists"
+description: "Lists let you group nodes into named, ordered collections with per-entry ratings. Use lists to scope the graph view and organize reading queues or watch lists."
+---
+
+Lists are named collections that group nodes into an explicit, ordered sequence with an optional per-entry rating. Where the main graph view shows your entire knowledge library at once, a list lets you carve out a focused subset — a reading queue, a film festival watchlist, a semester's course materials — and view it as its own self-contained subgraph.
+
+## List fields
+
+```typescript
+export interface List {
+  id:          string        // 4-character alphanumeric slug, e.g. "x7k2"
+  name:        string        // max 200 characters
+  description: string | null // optional; max 2 000 characters
+  createdAt:   string        // ISO 8601 timestamp
+  updatedAt:   string        // ISO 8601 timestamp
+}
+```
+
+<Note>
+  List IDs are short 4-character alphanumeric slugs (e.g. `x7k2`) rather than UUIDs. This keeps URLs readable when you scope the graph view to a list via `?listId=x7k2`. The server retries generation up to ten times to guarantee uniqueness.
+</Note>
+
+## ListWithNodes
+
+The `GET /api/lists/:id` endpoint returns a richer shape that includes the full node data for every member of the list, augmented with two list-specific fields:
+
+```typescript
+export interface ListWithNodes extends List {
+  nodes: (Node & {
+    position:   number        // 0-based integer; determines display order
+    listRating: number | null // per-list rating, independent of the node's own rating
+  })[]
+}
+```
+
+Nodes are returned pre-sorted by `position` ascending, so consumers do not need to sort client-side.
+
+<Tip>
+  A node's `listRating` is completely independent of its global `rating` field. This lets you rate the same book differently in a "personal favourites" list versus a "books to recommend to colleagues" list.
+</Tip>
+
+## List operations
+
+<AccordionGroup>
+  <Accordion title="Create a list — POST /api/lists">
+    ```json
+    {
+      "name": "Lecturas de verano",
+      "description": "Novelas y ensayos para julio y agosto"
+    }
+    ```
+    Returns the newly created `List` object with status `201 Created`. If `name` is omitted the list ID is used as its name.
+  </Accordion>
+
+  <Accordion title="Add a node to a list — POST /api/lists/:id/nodes">
+    ```json
+    { "nodeId": "550e8400-e29b-41d4-a716-446655440000" }
+    ```
+    The node is appended at the end (position = current max + 1). Returns `409 Conflict` if the node is already in the list.
+  </Accordion>
+
+  <Accordion title="Rate a node within a list — PUT /api/lists/:id/nodes/:nodeId/rating">
+    ```json
+    { "rating": 6 }
+    ```
+    Sets the `listRating` for that node inside this list only. Pass `null` to clear the rating.
+
+    ```json
+    { "rating": null }
+    ```
+  </Accordion>
+
+  <Accordion title="Reorder nodes — PUT /api/lists/:id/nodes/reorder">
+    Send the full ordered array of node IDs. The server assigns each ID its index (0, 1, 2, …) as its new `position`.
+
+    ```json
+    {
+      "nodeIds": [
+        "550e8400-e29b-41d4-a716-446655440000",
+        "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+        "6ba7b814-9dad-11d1-80b4-00c04fd430c8"
+      ]
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Remove a node from a list — DELETE /api/lists/:id/nodes/:nodeId">
+    Removes the node from the list without deleting the node itself from the database. Returns `404 Not Found` if the node is not in the list.
+  </Accordion>
+</AccordionGroup>
+
+## Graph view integration
+
+Append `?listId=<id>` to the graph URL to display only the nodes belonging to that list:
+
+```
+/graph?listId=x7k2
+```
+
+When a `listId` query parameter is present, the graph view:
+
+1. Fetches the `ListWithNodes` response for that list.
+2. Filters the global node set down to only the IDs returned in `nodes`.
+3. Filters the global relations set to only edges where **both** `sourceId` and `targetId` are in the list.
+
+The result is a focused subgraph that makes it easy to see how the nodes in a specific list relate to each other without noise from the rest of your library.
+
+<Tip>
+  The Node Detail page also respects the `?listId` parameter. Navigating from the list-scoped graph to a node detail page carries the `listId` forward, so the relation sidebar shows only connections to other nodes in the same list, and the rating widget writes to `listRating` rather than the global `rating`.
+</Tip>
+
+## Auto-seeded list
+
+On first start, BaBel+ seeds the database with sample content and automatically creates a list named **"Todos los nodos"** that contains all seeded nodes. This list gives you a ready-made canvas to explore the graph immediately after installation.
+
+<Note>
+  You can rename, edit, or delete the seeded list at any time. Deleting a list removes only the list and its membership records — the nodes themselves are never deleted.
+</Note>
+
+---
+
+## See also
+
+- [Lists API](/api/lists) — full REST reference for all list and list-node endpoints

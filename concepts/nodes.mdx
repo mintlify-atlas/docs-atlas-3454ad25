@@ -1,0 +1,138 @@
+---
+title: "Nodes: the building blocks of your knowledge graph"
+sidebarTitle: "Nodes"
+description: "Nodes represent individual pieces of content — books, films, articles, videos, courses, and video games. Learn the fields, types, and statuses that every node carries."
+---
+
+Nodes are the atomic units of BaBel+. Every piece of content you want to track — a novel you're reading, a film you want to watch, a course you are enrolled in — lives in the graph as a single node. Nodes carry metadata like author, year, tags, and a personal rating, and they connect to each other through typed relations to form your knowledge network.
+
+## Node types
+
+BaBel+ recognises six content types. The type you choose controls the color the node is given in the graph view and acts as a first-class filter throughout the UI.
+
+<CardGroup cols={2}>
+  <Card title="libro" icon="book">
+    A written work — novel, essay collection, non-fiction book, or any long-form text you read cover to cover.
+  </Card>
+  <Card title="pelicula" icon="film">
+    A film or feature-length video work, including documentaries and short films.
+  </Card>
+  <Card title="articulo" icon="newspaper">
+    A shorter written piece such as a blog post, academic paper, essay, or magazine article.
+  </Card>
+  <Card title="video" icon="play">
+    An online video, YouTube video, documentary episode, or recorded talk that does not fit the *pelicula* category.
+  </Card>
+  <Card title="curso" icon="graduation-cap">
+    A structured learning experience — an online course, MOOC, workshop series, or tutorial track.
+  </Card>
+  <Card title="videojuego" icon="gamepad">
+    A video game of any genre or platform.
+  </Card>
+</CardGroup>
+
+## Node fields
+
+Every node in BaBel+ carries the following fields.
+
+| Field | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `string` (UUID) | auto-generated | Primary key; never set manually |
+| `title` | `string` | required; max 500 chars | Displayed as the node label in the graph |
+| `type` | `NodeType` | one of the six types | Immutable after creation via the UI |
+| `description` | `string \| null` | optional; max 5 000 chars | Free-form notes or synopsis |
+| `status` | `NodeStatus` | `pendiente \| en_progreso \| terminado \| abandonado` | Defaults to `pendiente` |
+| `priority` | `NodePriority` | `alta \| media \| baja` | Defaults to `media` |
+| `tags` | `string[]` | optional; max 50 tags | Stored as a JSON array in the database |
+| `author` | `string \| null` | optional; max 300 chars | Author, director, creator, etc. |
+| `year` | `number \| null` | optional; integer −5 000 – 3 000 | Publication or release year |
+| `link` | `string \| null` | optional; max 2 000 chars | External URL (article link, store page, etc.) |
+| `localFile` | `string \| null` | optional; max 500 chars | Path to a local file on the host machine |
+| `rating` | `number \| null` | optional; integer 1–7 | Personal rating on a 1-to-7 scale |
+| `createdAt` | `string` | ISO 8601 timestamp | Set at creation, never updated |
+| `updatedAt` | `string` | ISO 8601 timestamp | Updated on every `PUT /api/nodes/:id` call |
+
+### TypeScript interface
+
+The canonical shape of a node as returned by the API and used throughout the client:
+
+```typescript
+import type { NODE_TYPES, NODE_STATUSES, NODE_PRIORITIES } from './constants'
+
+export type NodeType     = typeof NODE_TYPES[number]
+export type NodeStatus   = typeof NODE_STATUSES[number]
+export type NodePriority = typeof NODE_PRIORITIES[number]
+
+export interface Node {
+  id:          string
+  title:       string
+  type:        NodeType
+  description: string | null
+  status:      NodeStatus
+  priority:    NodePriority
+  tags:        string | null   // JSON-encoded string[] in the database
+  author:      string | null
+  year:        number | null
+  link:        string | null
+  localFile:   string | null
+  rating:      number | null
+  createdAt:   string          // ISO 8601
+  updatedAt:   string          // ISO 8601
+}
+```
+
+<Note>
+  The `tags` field is serialised as a JSON string in PostgreSQL (e.g. `'["fiction","philosophy"]'`). The API transparently accepts an array on write and returns the raw JSON string on read — parse it with `JSON.parse(node.tags ?? '[]')` in your own scripts.
+</Note>
+
+## Status lifecycle
+
+A node's `status` describes where it sits in your personal workflow. The typical progression moves left to right:
+
+```
+pendiente  ──►  en_progreso  ──►  terminado
+                     │
+                     └──────────►  abandonado
+```
+
+| Status | Meaning |
+|---|---|
+| `pendiente` | Added to the library but not yet started — your backlog |
+| `en_progreso` | Currently being read, watched, or played |
+| `terminado` | Finished; the node is rendered differently in the graph (see below) |
+| `abandonado` | Started but dropped; kept for reference without cluttering the active graph |
+
+<Tip>
+  You can toggle a node between `pendiente` and `terminado` directly on the Node Detail page by clicking the status badge — no form submission required.
+</Tip>
+
+## How the graph canvas renders nodes
+
+Node appearance in the graph view is determined by two properties: **shape** and **color**.
+
+### Shapes
+
+- **Circle** — any node whose status is `pendiente`, `en_progreso`, or `abandonado`. Radius is 14 px in world space.
+- **Small red square** — any node whose status is `terminado`. The square is 6 × 6 px in world space and filled with `#e53935`. This makes completed content visually recede so in-progress work stays prominent.
+
+### Colors by type
+
+```
+libro      →  #4a90d9  (steel blue)
+pelicula   →  #50c878  (emerald green)
+articulo   →  #4a90d9  (steel blue, same as libro)
+video      →  #9b59b6  (amethyst purple)
+curso      →  #9b59b6  (amethyst purple, same as video)
+videojuego →  #e67e22  (carrot orange)
+```
+
+<Note>
+  `libro` and `articulo` share the same color, as do `video` and `curso`. Use the type filter legend in the graph view to distinguish them visually when needed.
+</Note>
+
+---
+
+## See also
+
+- [Relations](/concepts/relations) — how nodes are connected with typed, weighted edges
+- [Nodes API](/api/nodes) — full REST reference for creating, updating, and deleting nodes

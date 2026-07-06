@@ -1,0 +1,153 @@
+---
+title: "Environment variables for BaBel+ server configuration"
+sidebarTitle: "Environment"
+description: "Configure BaBel+ with environment variables for the database connection, Groq API key, CORS, port, and JWT secret. Required vs optional variables explained."
+---
+
+BaBel+'s server reads all configuration exclusively from environment variables, loaded via `dotenv` in development and injected directly by the hosting platform (e.g., Render) in production. To get started locally, copy the example template to create your own env file:
+
+```bash
+cp packages/server/.env.example packages/server/.env
+```
+
+## `.env.example`
+
+```env
+# Required: Groq API key for AI classification features
+# Get one at https://console.groq.com
+GROQ_API_KEY=
+
+# Optional: Database path (default: data/babel.db)
+DB_PATH=data/babel.db
+
+# Optional: Server port (default: 3000)
+PORT=3000
+
+# Optional: CORS origin (default: *, set to your Vercel URL in production)
+CORS_ORIGIN=*
+
+# Optional: JWT secret for auth (default: dev-only fallback)
+JWT_SECRET=
+
+# Optional: Node environment (default: development)
+NODE_ENV=development
+```
+
+## Variables
+
+<Note>
+  Only `DATABASE_URL` and `GROQ_API_KEY` are truly required. If either is missing, the server will throw a clear error message at startup and refuse to start — no silent failures.
+</Note>
+
+<ParamField path="DATABASE_URL" type="string" required>
+  PostgreSQL connection string used by Drizzle ORM to connect to the database. The server throws `Missing required env DATABASE_URL` on startup if this value is absent.
+
+  ```env
+  DATABASE_URL=postgresql://user:password@localhost:5432/babel
+  ```
+
+  For a free cloud database, see [Render PostgreSQL](https://render.com/docs/databases) or [Neon](https://neon.tech).
+</ParamField>
+
+<ParamField path="GROQ_API_KEY" type="string" required>
+  API key for the Groq inference service, used to power AI node classification. The server throws `Missing required env GROQ_API_KEY` on startup if this value is absent.
+
+  Obtain a key at [https://console.groq.com](https://console.groq.com).
+
+  ```env
+  GROQ_API_KEY=gsk_...
+  ```
+</ParamField>
+
+<ParamField path="PORT" type="number" default="3000">
+  The port on which the Hono HTTP server listens. Change this if port 3000 is already in use on your machine or if your hosting provider assigns a specific port.
+
+  ```env
+  PORT=8080
+  ```
+</ParamField>
+
+<ParamField path="CORS_ORIGIN" type="string" default="*">
+  The allowed CORS origin returned in `Access-Control-Allow-Origin` headers. The wildcard default `*` is convenient for development but should be narrowed to your frontend URL in production.
+
+  ```env
+  # Production example
+  CORS_ORIGIN=https://my-babel.onrender.com
+  ```
+</ParamField>
+
+<ParamField path="JWT_SECRET" type="string" default="dev-secret-change-in-production">
+  Secret used for signing JWT tokens. Authentication is not yet implemented in the current version of BaBel+, but this secret will be used once auth is added. The default value is intentionally insecure and must be replaced in production.
+
+  ```env
+  JWT_SECRET=a-long-random-string-at-least-32-chars
+  ```
+</ParamField>
+
+<ParamField path="NODE_ENV" type="string" default="development">
+  Controls the server's runtime mode. When set to `production`, the Hono server serves the pre-built React SPA from `packages/client/dist` as static assets. In `development`, Vite handles the frontend on its own dev server and proxies `/api/*` requests to the Hono server on port 3000.
+
+  ```env
+  NODE_ENV=production
+  ```
+</ParamField>
+
+<ParamField path="DB_PATH" type="string" default="data/babel.db">
+  Legacy path for SQLite storage from an earlier version of BaBel+. This variable is read by `config.ts` but is **unused** in the current PostgreSQL implementation. You can safely omit it.
+</ParamField>
+
+<Warning>
+  **Never use the default `JWT_SECRET` in production.** The value `dev-secret-change-in-production` is publicly known and provides no security. Generate a strong random secret before deploying — for example:
+
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  ```
+</Warning>
+
+## Development vs Production
+
+### Development
+
+In development, the monorepo runs two processes side by side: the Hono API server and the Vite dev server for the React client.
+
+<Steps>
+  <Step title="Create your env file">
+    Copy `packages/server/.env.example` to `packages/server/.env` and fill in `DATABASE_URL` and `GROQ_API_KEY`.
+  </Step>
+  <Step title="Start both servers">
+    From the monorepo root, run:
+
+    ```bash
+    npm run dev
+    ```
+
+    This uses `concurrently` to start `@babel-plus/server` (Hono on port 3000) and `@babel-plus/client` (Vite on its default port 5173) simultaneously.
+  </Step>
+  <Step title="Access the app">
+    Open the Vite dev server URL (typically `http://localhost:5173`). Vite proxies all `/api/*` requests to `http://localhost:3000`, so the client and server communicate transparently.
+  </Step>
+</Steps>
+
+### Production
+
+In production, the server process handles both the API and static file serving for the React SPA.
+
+<Steps>
+  <Step title="Set production variables">
+    Ensure `NODE_ENV=production`, a strong `JWT_SECRET`, and a production `CORS_ORIGIN` are set in your environment. On Render, these are configured in the service's **Environment** tab — no `.env` file is needed.
+  </Step>
+  <Step title="Build all packages">
+    ```bash
+    npm run build
+    ```
+
+    This runs `tsc` for the server and Vite's production build for the client, writing the compiled SPA to `packages/client/dist`.
+  </Step>
+  <Step title="Start the server">
+    ```bash
+    npm start
+    ```
+
+    The Hono server starts on `PORT`, serves `/api/*` routes, and serves the React SPA from `packages/client/dist` for all other requests.
+  </Step>
+</Steps>

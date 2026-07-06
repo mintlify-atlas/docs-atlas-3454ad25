@@ -1,0 +1,63 @@
+---
+title: "GET /api/search — full-text node search"
+sidebarTitle: "Search"
+description: "Search nodes by title, description, author, and tags with a single query string. Returns all matching nodes using PostgreSQL ILIKE pattern matching."
+---
+
+The search endpoint performs a case-insensitive full-text search across node content and returns every matching node. It uses PostgreSQL's `ILIKE` operator to match the trimmed query string against the `title`, `description`, `author`, and `tags` columns simultaneously — any node that matches in at least one field is included in the response.
+
+---
+
+## GET /api/search
+
+### Query parameters
+
+<ParamField query="q" type="string" required>
+  Search query string. Trimmed and capped at 200 characters before the query is executed. Returns an empty array if this parameter is missing or blank.
+</ParamField>
+
+### Behavior
+
+The server builds an `OR` condition across four columns:
+
+```
+title        ILIKE '%<query>%'
+description  ILIKE '%<query>%'
+author       ILIKE '%<query>%'
+tags         ILIKE '%<query>%'
+```
+
+All matching nodes are returned in a single response with no pagination.
+
+### Response
+
+Returns a JSON array of `Node` objects. Returns an empty array `[]` when no nodes match or when `q` is not provided.
+
+```bash
+curl 'http://localhost:3000/api/search?q=marxismo'
+```
+
+```json
+[
+  {
+    "id": "uuid-of-das-kapital",
+    "title": "El Capital",
+    "type": "libro",
+    "description": "Crítica de la economía política capitalista.",
+    "status": "terminado",
+    "priority": "alta",
+    "tags": "[\"marxismo\",\"economía\",\"filosofía\"]",
+    "author": "Karl Marx",
+    "year": 1867,
+    "link": null,
+    "localFile": null,
+    "rating": null,
+    "createdAt": "2024-01-10T09:00:00.000Z",
+    "updatedAt": "2024-01-10T09:00:00.000Z"
+  }
+]
+```
+
+<Note>
+  Search is not ranked by relevance — it returns all nodes that contain the query string in any of the four fields, with no ordering guarantee. Tags are stored as a JSON string in the database, so the query matches against the raw serialized value. For example, searching for `filosofia` will match a node whose `tags` column contains `["filosofia","marxismo"]` because the substring appears in the stored text.
+</Note>

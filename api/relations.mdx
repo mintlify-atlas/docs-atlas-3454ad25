@@ -1,0 +1,167 @@
+---
+title: "REST API endpoints for relations — BaBel+ API reference"
+sidebarTitle: "Relations"
+description: "Create and delete typed directed edges (relations) between BaBel+ nodes. Supports nine semantic relation types with configurable weight values."
+---
+
+Relation endpoints manage the directed edges between nodes in the knowledge graph. Each relation is a typed, directed edge that connects a source node to a target node. Every relation carries a `weight` value between `0.0` and `1.0` that influences both the graph physics simulation and edge visibility — only edges whose weight is **≥ 0.7** are rendered in the graph view. Lower-weight relations are stored in the database and queryable through the API but are hidden from the visual graph.
+
+---
+
+## GET /api/relations
+
+List all relations. Optionally scope the result to edges that originate from or point to a specific node.
+
+### Query parameters
+
+<ParamField query="sourceId" type="string">
+  Return only relations whose source is this node ID.
+</ParamField>
+
+<ParamField query="targetId" type="string">
+  Return only relations whose target is this node ID.
+</ParamField>
+
+Both filters may be combined to find a relation between two specific nodes. If neither parameter is supplied, all relations in the database are returned.
+
+### Response
+
+Returns a JSON array of `Relation` objects.
+
+```bash
+curl 'http://localhost:3000/api/relations?sourceId=<uuid>'
+```
+
+```json
+[
+  {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "sourceId": "uuid-of-hegel",
+    "targetId": "uuid-of-marx",
+    "type": "influyo_a",
+    "weight": 1.0,
+    "createdAt": "2024-01-15T10:30:00.000Z"
+  }
+]
+```
+
+---
+
+## POST /api/relations
+
+Create a new directed relation between two existing nodes.
+
+### Request body
+
+<ParamField body="sourceId" type="string" required>
+  ID of the source node. Must be an existing node UUID.
+</ParamField>
+
+<ParamField body="targetId" type="string" required>
+  ID of the target node. Must be an existing node UUID and must differ from `sourceId`.
+</ParamField>
+
+<ParamField body="type" type="RelationType" required>
+  Semantic type of the relation. Must be one of the nine valid values:
+
+  | Value | Meaning |
+  |---|---|
+  | `es_autor_de` | The source authored the target |
+  | `dirigio` | The source directed the target |
+  | `trata_sobre` | The source content is about the target concept |
+  | `pertenece_a` | The source belongs to the target school or category |
+  | `influyo_a` | The source influenced the target |
+  | `critica_a` | The source critiques the target |
+  | `inspiro` | The source was inspired by the target |
+  | `ocurre_en` | The source takes place during the target event or era |
+  | `similar_a` | The source is thematically similar to the target |
+</ParamField>
+
+<ParamField body="weight" type="number">
+  Float between `0.0` and `1.0` representing the strength of the relation. Defaults to `1.0`. Edges with weight below `0.7` are stored but not displayed in the graph view.
+</ParamField>
+
+### Validation
+
+- `sourceId` and `targetId` must be provided and must be different.
+- Both referenced nodes must already exist — a missing node returns `404`.
+- `type` must be one of the nine valid `RelationType` values.
+- `weight` must be a number in the range `[0.0, 1.0]`.
+
+### Response
+
+Returns `201 Created` with the created `Relation` object.
+
+```bash
+curl -X POST http://localhost:3000/api/relations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sourceId": "uuid-of-hegel",
+    "targetId": "uuid-of-marx",
+    "type": "influyo_a",
+    "weight": 1.0
+  }'
+```
+
+```json
+{
+  "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "sourceId": "uuid-of-hegel",
+  "targetId": "uuid-of-marx",
+  "type": "influyo_a",
+  "weight": 1.0,
+  "createdAt": "2024-01-15T10:30:00.000Z"
+}
+```
+
+---
+
+## DELETE /api/relations/:id
+
+Delete a relation by its ID. This removes only the edge — neither the source nor target node is affected.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The UUID of the relation to delete.
+</ParamField>
+
+### Response
+
+Returns `{ "success": true }` on deletion.
+
+```bash
+curl -X DELETE http://localhost:3000/api/relations/a1b2c3d4-e5f6-7890-abcd-ef1234567890
+```
+
+```json
+{ "success": true }
+```
+
+---
+
+## TypeScript interface
+
+The `Relation` type returned by all endpoints is defined in `@babel-plus/shared`:
+
+```typescript
+export interface Relation {
+  id: string
+  sourceId: string
+  targetId: string
+  type: RelationType
+  weight: number
+  createdAt: string
+}
+
+export type RelationType =
+  | 'es_autor_de'
+  | 'dirigio'
+  | 'trata_sobre'
+  | 'pertenece_a'
+  | 'influyo_a'
+  | 'critica_a'
+  | 'inspiro'
+  | 'ocurre_en'
+  | 'similar_a'
+```

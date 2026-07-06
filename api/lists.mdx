@@ -1,0 +1,348 @@
+---
+title: "REST API endpoints for lists — BaBel+ API reference"
+sidebarTitle: "Lists"
+description: "Manage named, ordered collections of nodes. Create lists, add and remove nodes, rate entries, reorder members, and use list IDs to scope the graph view."
+---
+
+List endpoints let you group nodes into named, ordered collections. Lists support per-node ratings and integer position values so members can be arranged in any order. Pass a list ID as `?listId=<id>` in the graph view URL to restrict the graph to only that list's nodes — useful for curating reading lists, film selections, or any thematic subset of your library.
+
+---
+
+## GET /api/lists
+
+Retrieve all lists ordered by creation date ascending. Node members are not included in this response; use `GET /api/lists/:id` to fetch a list with its nodes.
+
+### Response
+
+Returns a JSON array of `List` objects.
+
+```bash
+curl http://localhost:3000/api/lists
+```
+
+```json
+[
+  {
+    "id": "ab3x",
+    "name": "Filosofía Política",
+    "description": "Lecturas sobre teoría del estado y poder.",
+    "createdAt": "2024-01-10T09:00:00.000Z",
+    "updatedAt": "2024-01-10T09:00:00.000Z"
+  }
+]
+```
+
+---
+
+## POST /api/lists
+
+Create a new list. List IDs are 4-character lowercase alphanumeric strings (e.g., `ab3x`) generated automatically, with a retry loop to guarantee uniqueness. If `name` is omitted the generated ID is used as the list name.
+
+### Request body
+
+<ParamField body="name" type="string">
+  Display name for the list. Maximum 200 characters. Whitespace is trimmed. Defaults to the generated ID if omitted.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional longer description. Maximum 2000 characters.
+</ParamField>
+
+### Response
+
+Returns `201 Created` with the created `List` object.
+
+```bash
+curl -X POST http://localhost:3000/api/lists \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Filosofía Política",
+    "description": "Lecturas sobre teoría del estado y poder."
+  }'
+```
+
+```json
+{
+  "id": "ab3x",
+  "name": "Filosofía Política",
+  "description": "Lecturas sobre teoría del estado y poder.",
+  "createdAt": "2024-01-10T09:00:00.000Z",
+  "updatedAt": "2024-01-10T09:00:00.000Z"
+}
+```
+
+---
+
+## GET /api/lists/:id
+
+Fetch a single list along with all of its member nodes, ordered by position ascending.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The 4-character list ID.
+</ParamField>
+
+### Response
+
+Returns a `ListWithNodes` object: all `List` fields plus a `nodes` array. Each element in `nodes` is a full `Node` object with two additional list-specific fields:
+
+<ResponseField name="nodes[].position" type="number">
+  Zero-based integer index of the node within the list.
+</ResponseField>
+
+<ResponseField name="nodes[].listRating" type="number | null">
+  Optional integer rating assigned to this node within the list context. `null` if no rating has been set.
+</ResponseField>
+
+```bash
+curl http://localhost:3000/api/lists/ab3x
+```
+
+```json
+{
+  "id": "ab3x",
+  "name": "Filosofía Política",
+  "description": "Lecturas sobre teoría del estado y poder.",
+  "createdAt": "2024-01-10T09:00:00.000Z",
+  "updatedAt": "2024-01-10T09:00:00.000Z",
+  "nodes": [
+    {
+      "id": "uuid-of-marx",
+      "title": "El Capital",
+      "type": "libro",
+      "position": 0,
+      "listRating": 9,
+      "..."
+    }
+  ]
+}
+```
+
+Returns `404` if the list does not exist.
+
+---
+
+## PUT /api/lists/:id
+
+Update the name and/or description of an existing list.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The 4-character list ID.
+</ParamField>
+
+### Request body
+
+<ParamField body="name" type="string">
+  New display name. Maximum 200 characters, trimmed. Cannot be an empty string.
+</ParamField>
+
+<ParamField body="description" type="string">
+  New description. Maximum 2000 characters. Pass `null` to clear.
+</ParamField>
+
+### Response
+
+Returns the updated `List` object, or `404` if the list does not exist.
+
+```bash
+curl -X PUT http://localhost:3000/api/lists/ab3x \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Teoría Política Clásica" }'
+```
+
+---
+
+## DELETE /api/lists/:id
+
+Delete a list and all of its membership records. The nodes themselves are **not** deleted — they remain in the database and graph.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The 4-character list ID.
+</ParamField>
+
+### Response
+
+Returns `{ "success": true }` on success, or `404` if the list does not exist.
+
+```bash
+curl -X DELETE http://localhost:3000/api/lists/ab3x
+```
+
+```json
+{ "success": true }
+```
+
+---
+
+## POST /api/lists/:id/nodes
+
+Add a node to a list. The node is appended at the end: its `position` is set to the current maximum position in the list plus one (starting from `0` for the first member).
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The 4-character list ID.
+</ParamField>
+
+### Request body
+
+<ParamField body="nodeId" type="string" required>
+  UUID of the node to add.
+</ParamField>
+
+### Response
+
+Returns `201 Created` with the new list-node membership entry. Returns `409 Conflict` if the node is already a member of the list. Returns `404` if the list or the node does not exist.
+
+```bash
+curl -X POST http://localhost:3000/api/lists/ab3x/nodes \
+  -H "Content-Type: application/json" \
+  -d '{ "nodeId": "uuid-of-marx" }'
+```
+
+```json
+{
+  "id": "membership-uuid",
+  "listId": "ab3x",
+  "nodeId": "uuid-of-marx",
+  "position": 0,
+  "createdAt": "2024-01-15T10:00:00.000Z"
+}
+```
+
+---
+
+## DELETE /api/lists/:id/nodes/:nodeId
+
+Remove a node from a list. The node itself is not deleted from the database — only the list membership is removed.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The 4-character list ID.
+</ParamField>
+
+<ParamField path="nodeId" type="string" required>
+  UUID of the node to remove.
+</ParamField>
+
+### Response
+
+Returns `{ "success": true }` on success, or `404` if the membership does not exist.
+
+```bash
+curl -X DELETE http://localhost:3000/api/lists/ab3x/nodes/uuid-of-marx
+```
+
+```json
+{ "success": true }
+```
+
+---
+
+## PUT /api/lists/:id/nodes/:nodeId/rating
+
+Set or clear the rating for a specific node within a list. Ratings are scoped to the list — the same node can have different ratings in different lists.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The 4-character list ID.
+</ParamField>
+
+<ParamField path="nodeId" type="string" required>
+  UUID of the node to rate.
+</ParamField>
+
+### Request body
+
+<ParamField body="rating" type="number | null" required>
+  Integer rating to assign. Pass `null` to clear an existing rating.
+</ParamField>
+
+### Response
+
+Returns `{ "success": true }` on success, or `404` if the node is not a member of the list.
+
+```bash
+curl -X PUT http://localhost:3000/api/lists/ab3x/nodes/uuid-of-marx/rating \
+  -H "Content-Type: application/json" \
+  -d '{ "rating": 9 }'
+```
+
+```bash
+# Clear a rating
+curl -X PUT http://localhost:3000/api/lists/ab3x/nodes/uuid-of-marx/rating \
+  -H "Content-Type: application/json" \
+  -d '{ "rating": null }'
+```
+
+---
+
+## PUT /api/lists/:id/nodes/reorder
+
+Reorder all nodes in a list by supplying the complete ordered array of node IDs. Each node's `position` is set to its index in the supplied array.
+
+<Tip>
+  Send the full list of node IDs in every call — partial arrays will leave omitted nodes with their old positions rather than removing them.
+</Tip>
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The 4-character list ID.
+</ParamField>
+
+### Request body
+
+<ParamField body="nodeIds" type="string[]" required>
+  Fully ordered array of node UUIDs. The node at index `0` receives `position: 0`, index `1` receives `position: 1`, and so on.
+</ParamField>
+
+### Response
+
+Returns `{ "success": true }` on success, or `404` if the list does not exist.
+
+```bash
+curl -X PUT http://localhost:3000/api/lists/ab3x/nodes/reorder \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nodeIds": [
+      "uuid-of-marx",
+      "uuid-of-hegel",
+      "uuid-of-kant"
+    ]
+  }'
+```
+
+```json
+{ "success": true }
+```
+
+---
+
+## TypeScript interfaces
+
+The `List` and `ListWithNodes` types returned by these endpoints are defined in `@babel-plus/shared`:
+
+```typescript
+export interface List {
+  id: string          // 4-character alphanumeric, e.g. "ab3x"
+  name: string
+  description: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ListWithNodes extends List {
+  nodes: (Node & {
+    position: number        // zero-based integer order within the list
+    listRating: number | null
+  })[]
+}
+```

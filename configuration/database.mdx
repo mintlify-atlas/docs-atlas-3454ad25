@@ -1,0 +1,225 @@
+---
+title: "Database setup, migrations, and seeding with Drizzle ORM"
+sidebarTitle: "Database"
+description: "BaBel+ uses PostgreSQL with Drizzle ORM. Covers schema overview, running migrations, the seed dataset, and the npm scripts for database management."
+---
+
+BaBel+ persists all data in PostgreSQL using [Drizzle ORM](https://orm.drizzle.team) with the `pg` driver. Migrations run automatically every time the server starts, so you never need to apply them manually in normal operation. On first launch, if the `nodes` table is empty, a seed script populates roughly 20 example nodes — books, films, people, and concepts drawn from philosophy and political cinema — along with their relations and a default list named "Todos los nodos".
+
+## Schema overview
+
+The database contains four tables. The entity-relationship flow is: `nodes` ← `relations` → `nodes`, and `lists` ↔ `list_nodes` ↔ `nodes`.
+
+### `nodes`
+
+The primary content table. Every book, film, concept, author, or event you track in BaBel+ is stored as a node.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `text` | Primary key | UUID string generated in application code |
+| `title` | `text` | Not null | Display name of the node |
+| `type` | `text` | Not null | E.g. `libro`, `pelicula`, `concepto`, `autor`, `escuela`, `evento` |
+| `description` | `text` | Nullable | Free-text summary |
+| `status` | `text` | Not null, default `pendiente` | Reading/viewing progress |
+| `priority` | `text` | Not null, default `media` | Importance (`alta`, `media`, `baja`) |
+| `tags` | `text` | Nullable | JSON-encoded string array of tag keywords |
+| `author` | `text` | Nullable | Creator(s) of the work |
+| `year` | `integer` | Nullable | Publication or release year |
+| `link` | `text` | Nullable | External URL |
+| `local_file` | `text` | Nullable | Path to a local file |
+| `rating` | `integer` | Nullable | Personal numeric rating |
+| `created_at` | `text` | Not null | ISO 8601 timestamp |
+| `updated_at` | `text` | Not null | ISO 8601 timestamp |
+
+### `relations`
+
+Directed, weighted edges between nodes. Deleting either endpoint cascades the deletion to the relation.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `text` | Primary key | UUID string |
+| `source_id` | `text` | Not null, FK → `nodes.id` cascade | Origin node of the edge |
+| `target_id` | `text` | Not null, FK → `nodes.id` cascade | Destination node of the edge |
+| `type` | `text` | Not null | Semantic label, e.g. `trata_sobre`, `es_autor_de`, `influyo_a` |
+| `weight` | `real` | Not null, default `1.0` | Edge strength used by graph layout |
+| `created_at` | `text` | Not null | ISO 8601 timestamp |
+
+### `lists`
+
+Named, ordered collections of nodes — similar to playlists or reading lists.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `text` | Primary key | 4-character alphanumeric slug |
+| `name` | `text` | Not null | Display name of the list |
+| `description` | `text` | Nullable | Optional summary |
+| `created_at` | `text` | Not null | ISO 8601 timestamp |
+| `updated_at` | `text` | Not null | ISO 8601 timestamp |
+
+### `list_nodes`
+
+Junction table that assigns nodes to lists with an explicit position and an optional per-list rating.
+
+| Column | Type | Constraints | Notes |
+|---|---|---|---|
+| `id` | `text` | Primary key | UUID string |
+| `list_id` | `text` | Not null, FK → `lists.id` cascade | Parent list |
+| `node_id` | `text` | Not null, FK → `nodes.id` cascade | Member node |
+| `position` | `integer` | Not null, default `0` | Sort order within the list |
+| `rating` | `integer` | Nullable | Per-list rating override |
+| `created_at` | `text` | Not null | ISO 8601 timestamp |
+
+A unique constraint on `(list_id, node_id)` prevents duplicate membership.
+
+## Drizzle schema source
+
+The full TypeScript schema lives at `packages/server/src/db/schema.ts`:
+
+```typescript
+import { pgTable, text, integer, real, unique } from 'drizzle-orm/pg-core'
+
+export const nodes = pgTable('nodes', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  type: text('type').notNull(),
+  description: text('description'),
+  status: text('status').notNull().default('pendiente'),
+  priority: text('priority').notNull().default('media'),
+  tags: text('tags'),
+  author: text('author'),
+  year: integer('year'),
+  link: text('link'),
+  localFile: text('local_file'),
+  rating: integer('rating'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const relations = pgTable('relations', {
+  id: text('id').primaryKey(),
+  sourceId: text('source_id').notNull().references(() => nodes.id, { onDelete: 'cascade' }),
+  targetId: text('target_id').notNull().references(() => nodes.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(),
+  weight: real('weight').notNull().default(1.0),
+  createdAt: text('created_at').notNull(),
+})
+
+export const lists = pgTable('lists', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const listNodes = pgTable('list_nodes', {
+  id: text('id').primaryKey(),
+  listId: text('list_id').notNull().references(() => lists.id, { onDelete: 'cascade' }),
+  nodeId: text('node_id').notNull().references(() => nodes.id, { onDelete: 'cascade' }),
+  position: integer('position').notNull().default(0),
+  rating: integer('rating'),
+  createdAt: text('created_at').notNull(),
+}, (table) => ({
+  uniqueListNode: unique().on(table.listId, table.nodeId),
+}))
+```
+
+## Running migrations
+
+BaBel+ uses a hand-written `migrate()` function in `packages/server/src/db/migrate.ts` that issues `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE … ADD COLUMN IF NOT EXISTS` statements. This means migrations are **idempotent** — they are safe to run multiple times.
+
+### Automatic migration on startup
+
+The server's `bootstrap()` function calls `migrate()` before accepting any requests. You do not need to run migrations manually when deploying or restarting the server.
+
+### Manual migration
+
+To push schema changes to the database outside of a server restart, run one of the following from the **monorepo root**:
+
+```bash
+npm run db:migrate
+```
+
+Or target the server workspace directly:
+
+```bash
+npm run db:migrate -w @babel-plus/server
+```
+
+Under the hood this runs `drizzle-kit push`, which compares the current schema against the live database and applies any outstanding changes. Migration artifacts (SQL snapshots) are written to `packages/server/drizzle/`.
+
+<Note>
+  `drizzle-kit push` is a direct schema-push command suited for development and small deployments. It does not produce versioned migration files the way `drizzle-kit generate` + `drizzle-kit migrate` would. If you need auditable, reversible migrations in a team environment, consider switching to the generate/migrate workflow.
+</Note>
+
+## Seeding
+
+The seed script at `packages/server/src/db/seed.ts` is triggered automatically on first launch when the `nodes` table is empty. It creates a curated knowledge graph covering Western philosophy, anti-colonial theory, and political cinema.
+
+### What gets seeded
+
+**20 nodes** across the following types:
+
+| Type | Examples |
+|---|---|
+| `libro` | *La Ideología Alemana*, *Fenomenología del Espíritu*, *Estatismo y Anarquía*, *La Sociedad del Espectáculo*, *Los condenados de la tierra* |
+| `pelicula` | *La Batalla de Argel* |
+| `concepto` | Colonialismo, Revolución, Estado, Materialismo histórico |
+| `autor` | Karl Marx, Mijaíl Bakunin, Guy Debord, Frantz Fanon |
+| `filosofo` | G. W. F. Hegel |
+| `director` | Gillo Pontecorvo |
+| `escuela` | Marxismo, Anarquismo, Idealismo alemán |
+| `evento` | Guerra de Independencia Argelina |
+
+**19 directed relations** linking those nodes with typed, weighted edges — for example:
+
+- `Karl Marx` →`es_autor_de`→ `La Ideología Alemana`
+- `G. W. F. Hegel` →`influyo_a`→ `Karl Marx`
+- `La Batalla de Argel` →`ocurre_en`→ `Guerra de Independencia Argelina`
+- `Mijaíl Bakunin` →`critica_a`→ `Karl Marx`
+
+**1 default list** — "Todos los nodos" — is created and all seeded nodes are added to it in chronological order.
+
+### Manual re-seed
+
+To run the seed script at any time (e.g., after resetting the database):
+
+```bash
+npm run db:seed
+```
+
+Or target the workspace directly:
+
+```bash
+npm run db:seed -w @babel-plus/server
+```
+
+<Warning>
+  Running `db:seed` on a non-empty database will fail with a unique-constraint violation because the seed attempts to insert rows with freshly generated UUIDs. Reset the relevant tables first, or only run the seed against an empty database.
+</Warning>
+
+## npm scripts reference
+
+All scripts below are available from the **monorepo root** (`package.json`):
+
+| Script | Command | Description |
+|---|---|---|
+| `db:migrate` | `npm run db:migrate` | Apply pending schema migrations via drizzle-kit push |
+| `db:seed` | `npm run db:seed` | Populate the database with the example knowledge graph |
+| `build` | `npm run build` | Build all packages (server TypeScript + client Vite bundle) |
+| `start` | `npm start` | Start the production server (serves API + compiled SPA) |
+| `dev` | `npm run dev` | Start server and Vite dev server concurrently for local development |
+
+## Connection
+
+Set the `DATABASE_URL` environment variable to a standard PostgreSQL connection string:
+
+```env
+DATABASE_URL=postgresql://user:password@hostname:5432/database_name
+```
+
+Drizzle ORM uses the `pg` npm package as its underlying driver. SSL is negotiated automatically by `pg` when the server requires it, which is the default on hosted PostgreSQL providers.
+
+<Tip>
+  Both [Render PostgreSQL](https://render.com/docs/databases) and [Neon](https://neon.tech) offer free-tier PostgreSQL databases that work out of the box with a standard connection string. On Render, you can attach a database directly to your web service and the `DATABASE_URL` environment variable is injected automatically.
+</Tip>

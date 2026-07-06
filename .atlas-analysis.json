@@ -1,0 +1,106 @@
+{
+  "projectType": "saas",
+  "projectName": "BaBel+",
+  "projectDescription": "A graph-based personal knowledge library that lets you catalog books, films, articles, videos, courses, and games as nodes, connect them with typed relations, and use AI (Groq/llama-3.1-8b) to classify and link new entries automatically.",
+  "theme": "luma",
+  "primaryColor": "#4a90d9",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "deployment"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/nodes",
+              "concepts/relations",
+              "concepts/lists",
+              "concepts/graph-view"
+            ]
+          },
+          {
+            "group": "AI Features",
+            "pages": [
+              "ai/overview",
+              "ai/smart-add",
+              "ai/classify"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/environment",
+              "configuration/database"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/nodes",
+              "api/relations",
+              "api/lists",
+              "api/search",
+              "api/ai"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Graph-based knowledge organization with nodes and typed directed relations",
+    "Six content types: books (libro), films (pelicula), articles (articulo), videos, courses (curso), and video games (videojuego)",
+    "Nine semantic relation types (es_autor_de, trata_sobre, influyo_a, similar_a, etc.)",
+    "AI-powered smart-add: paste a description and the LLM classifies it and suggests relations to existing nodes",
+    "Interactive force-directed graph visualization with zoom, pan, drag, and type filtering",
+    "Curated lists with ordering and per-node ratings",
+    "Full-text search across titles, descriptions, authors, and tags",
+    "Monorepo with a Hono (TypeScript) API server and a React/Vite SPA client",
+    "PostgreSQL persistence via Drizzle ORM with auto-migrations and seed data",
+    "One-click deployment to Render via render.yaml"
+  ],
+  "publicApiSurface": [
+    "GET /api/nodes — list nodes with optional type/status filters",
+    "GET /api/nodes/:id — get a single node",
+    "POST /api/nodes — create a node",
+    "PUT /api/nodes/:id — update a node",
+    "DELETE /api/nodes/:id — delete a node",
+    "GET /api/relations — list relations with optional sourceId/targetId filters",
+    "POST /api/relations — create a relation",
+    "DELETE /api/relations/:id — delete a relation",
+    "GET /api/search?q= — full-text search across nodes",
+    "POST /api/ai/classify — classify text and suggest node + relations (no DB write)",
+    "POST /api/ai/smart-add — classify text, persist node, and persist suggested relations",
+    "GET /api/lists — list all lists",
+    "GET /api/lists/:id — get list with its ordered nodes",
+    "POST /api/lists — create a list",
+    "PUT /api/lists/:id — update list metadata",
+    "DELETE /api/lists/:id — delete a list",
+    "POST /api/lists/:id/nodes — add a node to a list",
+    "DELETE /api/lists/:id/nodes/:nodeId — remove a node from a list",
+    "PUT /api/lists/:id/nodes/:nodeId/rating — rate a node within a list",
+    "PUT /api/lists/:id/nodes/reorder — reorder nodes in a list",
+    "GET /api/health — health check"
+  ]
+}

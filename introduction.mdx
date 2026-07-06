@@ -1,0 +1,79 @@
+---
+title: "BaBel+: Graph-based personal knowledge library"
+sidebarTitle: "Introduction"
+description: "BaBel+ is a self-hosted knowledge graph for cataloging books, films, articles, and more as nodes connected by typed semantic relations."
+---
+
+BaBel+ is a self-hosted TypeScript monorepo that turns your personal reading list, film collection, and research materials into a living knowledge graph. It pairs a **Hono API server** with a **React 19 SPA** so you can capture any piece of content, tag it with rich metadata, and then draw explicit, typed connections between items — surfacing relationships that a flat list or folder structure could never express.
+
+## Core concept
+
+Every item in BaBel+ is a **node**: a discrete unit of knowledge with a title, type, status, priority, tags, and optional metadata such as author, year, or external link. Nodes are connected by directed **relations** — edges that carry a semantic type describing *how* one node relates to another. The result is a personal knowledge graph you own entirely, stored in your own PostgreSQL database and browsable as an interactive force-directed canvas.
+
+### Node types
+
+BaBel+ recognises six content types out of the box:
+
+| Type | Description |
+|------|-------------|
+| `libro` | Books and long-form written works |
+| `pelicula` | Films and feature-length video works |
+| `articulo` | Articles, essays, and academic papers |
+| `video` | Short-form video content and lectures |
+| `curso` | Courses and structured learning programmes |
+| `videojuego` | Video games and interactive media |
+
+### Relation types
+
+Nine directed relation types describe the semantic links between nodes:
+
+| Relation | Meaning |
+|----------|---------|
+| `es_autor_de` | Person or entity authored the target |
+| `dirigio` | Person directed the target (film, etc.) |
+| `trata_sobre` | Source discusses or is about the target |
+| `pertenece_a` | Source belongs to a school, movement, or category |
+| `influyo_a` | Source influenced the target |
+| `critica_a` | Source critiques or responds to the target |
+| `inspiro` | Source inspired the target |
+| `ocurre_en` | Source is set in or takes place in the target |
+| `similar_a` | Source is thematically or formally similar to the target |
+
+## AI-powered classification
+
+BaBel+ integrates **Groq's `llama-3.1-8b-instant`** model via the `/api/ai/smart-add` endpoint. Submit a raw title or description and the AI analyses your existing graph to suggest a fully-typed node alongside any relations it detects with content you've already catalogued — all in a single request.
+
+## Interactive graph canvas
+
+The React SPA includes a force-directed graph view that renders every node and relation as an interactive canvas. Nodes are colour-coded by type, edges are labelled with their relation type, and you can click any node to inspect its full detail page — making it easy to navigate the connections you've built over time.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Run BaBel+ locally in five minutes with PostgreSQL and a Groq API key.
+  </Card>
+  <Card title="Core Concepts" icon="diagram-project" href="/concepts/nodes">
+    Learn how nodes, relations, and lists work together to form your knowledge graph.
+  </Card>
+  <Card title="AI Features" icon="microchip" href="/ai/overview">
+    Explore smart-add, classification, and how Groq integrates with your graph.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Full HTTP reference for every endpoint exposed by the Hono server.
+  </Card>
+</CardGroup>
+
+## Tech stack
+
+BaBel+ is built on a focused, modern TypeScript stack:
+
+| Layer | Technology |
+|-------|-----------|
+| API server | [Hono](https://hono.dev) v4 on `@hono/node-server` |
+| ORM & migrations | [Drizzle ORM](https://orm.drizzle.team) + `drizzle-kit` |
+| Database | PostgreSQL (managed on Render or self-hosted) |
+| Client UI | React 19 + React Router v7 |
+| Build tooling | Vite 6 + TypeScript 5.7 |
+| AI inference | Groq API (`llama-3.1-8b-instant`) via OpenAI-compatible SDK |
+| Hosting | [Render](https://render.com) (Blueprint-based one-click deploy) |
+
+The monorepo uses **npm workspaces** with three packages: `@babel-plus/server`, `@babel-plus/client`, and `@babel-plus/shared` (shared TypeScript types consumed by both sides).

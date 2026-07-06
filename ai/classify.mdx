@@ -1,0 +1,142 @@
+---
+title: "Classify: preview AI suggestions without writing to the database"
+sidebarTitle: "Classify"
+description: "POST /api/ai/classify runs the same AI classification as Smart Add but returns suggestions without creating any nodes or relations in the database."
+---
+
+The classify endpoint runs the full AI classification pipeline — sending your text to `llama-3.1-8b-instant`, extracting structured metadata, and suggesting semantic relations to existing nodes — but **does not write anything to the database**. Use it to preview what BaBel+ would create before committing, to validate that the model interprets your description correctly, or as the first step in a custom two-phase UI flow where the user reviews and confirms before anything is persisted.
+
+## Endpoint
+
+```
+POST /api/ai/classify
+```
+
+## Request
+
+### Body parameters
+
+<ParamField body="text" type="string" required>
+  Free-text description of the content to classify. The server trims whitespace and enforces a maximum of **10 000 characters**. The same validation rules apply as for Smart Add.
+</ParamField>
+
+<ParamField body="typeHint" type="string">
+  Optional type override. One of: `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego`. When provided, the model is instructed to use this type instead of inferring it from the text.
+</ParamField>
+
+### Example request
+
+```bash
+curl -X POST http://localhost:3000/api/ai/classify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Discipline and Punish by Michel Foucault (1975). An analysis of how modern institutions use surveillance and normalization to exercise power over populations."
+  }'
+```
+
+## Response
+
+### 200 OK
+
+Returns the AI-suggested node and relations. The structure is **identical** to the Smart Add response but nothing has been persisted — no node row is inserted, no relation row is inserted.
+
+<ResponseField name="node" type="ClassifiedNode object">
+  The model's suggested node. Note that `id`, `localFile`, `createdAt`, and `updatedAt` are **not present** in this response because no database record has been created yet.
+
+  <Expandable title="ClassifiedNode fields">
+    <ResponseField name="title" type="string">Extracted title.</ResponseField>
+    <ResponseField name="type" type="string">One of `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego`.</ResponseField>
+    <ResponseField name="description" type="string | null">One-sentence summary, or `null`.</ResponseField>
+    <ResponseField name="status" type="string">Always `pendiente`.</ResponseField>
+    <ResponseField name="priority" type="string">Always `media`.</ResponseField>
+    <ResponseField name="tags" type="string[]">Array of thematic tags suggested by the model.</ResponseField>
+    <ResponseField name="author" type="string | null">Extracted author or director, or `null`.</ResponseField>
+    <ResponseField name="year" type="number | null">Extracted year, or `null`.</ResponseField>
+    <ResponseField name="link" type="null">Always `null`.</ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="relations" type="SuggestedRelation[]">
+  Array of relation suggestions from the model. Unlike Smart Add, these are **not validated against the database** — the `targetTitle` values are exactly what the model returned. When you later create the node manually, you will need to resolve each `targetTitle` to an actual node ID.
+
+  <Expandable title="SuggestedRelation fields">
+    <ResponseField name="targetTitle" type="string">The exact title string returned by the model. Should match an existing node title.</ResponseField>
+    <ResponseField name="type" type="string">Suggested relation type.</ResponseField>
+    <ResponseField name="weight" type="number">Semantic weight (`0.4`, `0.7`, or `1.0`).</ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example response
+
+```json
+{
+  "node": {
+    "title": "Discipline and Punish",
+    "type": "libro",
+    "description": "Analysis of how modern institutions use surveillance and normalization to exercise power.",
+    "status": "pendiente",
+    "priority": "media",
+    "tags": ["foucault", "poder", "vigilancia", "instituciones", "filosofia-politica"],
+    "author": "Michel Foucault",
+    "year": 1975,
+    "link": null
+  },
+  "relations": [
+    {
+      "targetTitle": "Vigilar y Castigar",
+      "type": "similar_a",
+      "weight": 0.7
+    },
+    {
+      "targetTitle": "Biopolitica",
+      "type": "trata_sobre",
+      "weight": 1.0
+    }
+  ]
+}
+```
+
+## Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `400 Bad Request` | `text` is missing, empty, or not a string. Body: `{ "error": "text is required" }` |
+| `400 Bad Request` | `text` exceeds 10 000 characters. Body: `{ "error": "text too long (max 10000)" }` |
+| `500 Internal Server Error` | The Groq API call fails (network error, invalid API key, rate limit). |
+| `500 Internal Server Error` | The model returns a response that cannot be parsed as valid JSON. |
+
+## Classify vs Smart Add
+
+| | `POST /api/ai/classify` | `POST /api/ai/smart-add` |
+|---|---|---|
+| Calls the AI model | ✅ | ✅ |
+| Writes node to database | ❌ | ✅ |
+| Writes relations to database | ❌ | ✅ |
+| Resolves `targetTitle` to node UUIDs | ❌ | ✅ |
+| Response status | `200 OK` | `201 Created` |
+
+Classify is a **read-only dry run**. Smart Add calls the same `classifyAndSuggest` function internally and then proceeds to persist the results. If you want the behaviour of classify followed by a persist step, use classify first, show the preview to the user, and then create the node and relations yourself via the standard `POST /api/nodes` and `POST /api/relations` endpoints when the user confirms.
+
+## Building a confirmation UI
+
+<Steps>
+  <Step title="Call classify with the user's text">
+    Send `POST /api/ai/classify` with the free-text input. Display the returned `node` fields (title, type, description, tags, author, year) as an editable form so the user can correct any mistakes before committing.
+  </Step>
+  <Step title="Display suggested relations">
+    Render the `relations` array to the user. For each suggested `targetTitle`, look it up in your local node cache to show a link to the existing node. Let the user deselect relations they do not want.
+  </Step>
+  <Step title="Persist on confirmation">
+    When the user confirms, `POST /api/nodes` with the (possibly edited) node data to create the node. Then `POST /api/relations` for each relation the user approved, resolving `targetTitle` to the target node's `id` first.
+  </Step>
+</Steps>
+
+<Note>
+  This flow gives you full control over what gets written to the database. It is more work than Smart Add but avoids duplicates and lets users catch mis-classifications before they become graph noise.
+</Note>
+
+---
+
+<Card title="Smart Add" icon="bolt" href="/ai/smart-add">
+  Skip the preview step and let BaBel+ classify, create, and connect your node in one call with `POST /api/ai/smart-add`.
+</Card>

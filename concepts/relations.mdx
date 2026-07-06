@@ -1,0 +1,161 @@
+---
+title: "Relations: typed edges between knowledge nodes"
+sidebarTitle: "Relations"
+description: "Relations connect nodes with semantic meaning. BaBel+ supports nine directed relation types with configurable weights that control graph layout and AI suggestions."
+---
+
+Relations are the directed edges that give your knowledge graph its meaning. Where a node represents a single piece of content, a relation expresses *how* two nodes are connected — who wrote what, what influenced what, which works share a theme. Every relation has a source node, a target node, a semantic type, and a numeric weight that controls how strongly the two nodes are pulled together in the force simulation.
+
+## The nine relation types
+
+BaBel+ ships with nine predefined relation types, each carrying a distinct semantic role.
+
+<AccordionGroup>
+  <Accordion title="es_autor_de — is author of">
+    Links a person-node (usually an `articulo` or `libro` node representing an author) to the works they created. Use this to connect an author profile node to all of their books or essays.
+
+    **Example:** `[Jorge Luis Borges] --es_autor_de--> [Ficciones]`
+  </Accordion>
+  <Accordion title="dirigio — directed">
+    Links a director node to a film. Mirrors the `es_autor_de` pattern for the `pelicula` type.
+
+    **Example:** `[Andrei Tarkovsky] --dirigio--> [Stalker]`
+  </Accordion>
+  <Accordion title="trata_sobre — is about">
+    Links a piece of content to a concept, theme, or subject it covers. Great for surfacing thematic clusters in the graph.
+
+    **Example:** `[Gödel, Escher, Bach] --trata_sobre--> [Self-reference]`
+  </Accordion>
+  <Accordion title="pertenece_a — belongs to">
+    Links content to a broader school, movement, genre, or canon.
+
+    **Example:** `[Blood Meridian] --pertenece_a--> [American Literature]`
+  </Accordion>
+  <Accordion title="influyo_a — influenced">
+    Links an author or work to what they went on to influence. The direction is *from* the influencer *to* the influenced.
+
+    **Example:** `[Nietzsche] --influyo_a--> [Heidegger]`
+  </Accordion>
+  <Accordion title="critica_a — criticizes">
+    Links content that critiques, rebuts, or takes an opposing position to another work or author.
+
+    **Example:** `[A Critique of Pure Reason] --critica_a--> [Empiricism]`
+  </Accordion>
+  <Accordion title="inspiro — inspired">
+    Links a work to another work it directly inspired. Distinct from `influyo_a` in that it captures concrete creative inspiration rather than broad intellectual influence.
+
+    **Example:** `[Frankenstein] --inspiro--> [Blade Runner]`
+  </Accordion>
+  <Accordion title="ocurre_en — occurs in">
+    Links content to a historical period, geographic location, or cultural era in which it is set or was produced.
+
+    **Example:** `[All Quiet on the Western Front] --ocurre_en--> [World War I]`
+  </Accordion>
+  <Accordion title="similar_a — similar to">
+    Links two thematically or stylistically similar pieces of content. Unlike all other types, `similar_a` is **only valid between nodes of the same type** (libro–libro, pelicula–pelicula, etc.).
+
+    **Example:** `[Dune] --similar_a--> [Foundation]`
+  </Accordion>
+</AccordionGroup>
+
+## Relation fields
+
+```typescript
+import type { RELATION_TYPES } from './constants'
+
+export type RelationType = typeof RELATION_TYPES[number]
+
+export interface Relation {
+  id:        string         // UUID, auto-generated
+  sourceId:  string         // UUID of the source node
+  targetId:  string         // UUID of the target node
+  type:      RelationType   // one of the nine types
+  weight:    number         // 0.0 – 1.0, defaults to 1.0
+  createdAt: string         // ISO 8601 timestamp
+}
+```
+
+## Weight
+
+Every relation carries a `weight` value between `0.0` and `1.0` (inclusive). Weight serves two purposes:
+
+1. **Graph rendering** — edge opacity and stroke width scale with weight. A weight of `1.0` produces a fully opaque, thick line; a weight of `0.1` produces a faint, thin line.
+2. **Graph visibility** — only relations with `weight ≥ MIN_RELATION_WEIGHT` (`0.7`) are loaded into the graph canvas and the node detail sidebar at all. Relations below this threshold are stored in the database but invisible in the UI.
+
+```typescript
+// packages/shared/src/constants.ts
+export const MIN_RELATION_WEIGHT = 0.7
+```
+
+<Warning>
+  If you create a relation via the API without specifying `weight`, it defaults to `1.0` and will always be visible. If you want to store a "weak" connection that does not appear in the graph, set `weight` to a value below `0.7`.
+</Warning>
+
+## Relation type weights (AI suggestion budget)
+
+`RELATION_TYPE_WEIGHTS` is a separate concept from the per-relation `weight` field. It is a static lookup table used by the AI classification layer to decide **how many relations of each type** to suggest when you run Smart Add.
+
+```typescript
+// packages/shared/src/constants.ts
+export const RELATION_TYPE_WEIGHTS: Record<string, number> = {
+  es_autor_de: 4,
+  dirigio:     4,
+  trata_sobre: 4,
+  pertenece_a: 3,
+  influyo_a:   3,
+  critica_a:   4,
+  inspiro:     3,
+  ocurre_en:   1,
+  similar_a:   1,
+}
+```
+
+| Type | Weight | Interpretation |
+|---|---|---|
+| `es_autor_de` | 4 | High priority — authorship is a primary structural relation |
+| `dirigio` | 4 | High priority — direction is equally fundamental for film |
+| `trata_sobre` | 4 | High priority — thematic links are core to knowledge mapping |
+| `pertenece_a` | 3 | Medium priority — genre/movement membership is useful but secondary |
+| `influyo_a` | 3 | Medium priority — influence chains are valuable but harder to verify |
+| `critica_a` | 4 | High priority — critical relationships add strong intellectual structure |
+| `inspiro` | 3 | Medium priority — inspiration links enrich but can be speculative |
+| `ocurre_en` | 1 | Low priority — historical/geographic context is supplementary |
+| `similar_a` | 1 | Low priority — similarity is subjective and easily overused |
+
+The AI uses `RELATION_THRESHOLD` (value: `4`) as a cutoff; types at or above this threshold are suggested first and with greater confidence.
+
+## Validation rules
+
+The relations API enforces the following rules on every `POST /api/relations` request:
+
+<Tabs>
+  <Tab title="Self-loop prevention">
+    ```
+    sourceId ≠ targetId
+    ```
+    A node cannot have a relation to itself. The server returns `400 Bad Request` with `"source and target must be different"`.
+  </Tab>
+  <Tab title="Node existence">
+    Both `sourceId` and `targetId` must reference nodes that already exist in the database. Missing nodes return `404 Not Found`.
+  </Tab>
+  <Tab title="Type validation">
+    `type` must be one of the nine valid string literals. Any other value returns `400 Bad Request`.
+  </Tab>
+  <Tab title="Weight range">
+    `weight` must be a number in the closed interval `[0.0, 1.0]`. Out-of-range values return `400 Bad Request`.
+  </Tab>
+  <Tab title="similar_a constraint">
+    When `type` is `similar_a`, both the source and target node must share the same `type` field (e.g. both `libro`, both `pelicula`). Creating a `similar_a` relation between nodes of different types returns `400 Bad Request`.
+  </Tab>
+</Tabs>
+
+<Note>
+  When a node is deleted, all relations where it appears as `sourceId` or `targetId` are automatically removed by the database's `ON DELETE CASCADE` constraint.
+</Note>
+
+---
+
+## See also
+
+- [Relations API](/api/relations) — full REST reference for listing, creating, and deleting relations
+- [AI Smart Add](/ai/smart-add) — how BaBel+'s Groq-powered classifier uses relation type weights to suggest connections

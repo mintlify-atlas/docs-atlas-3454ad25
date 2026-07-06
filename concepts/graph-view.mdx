@@ -1,0 +1,121 @@
+---
+title: "Graph View: explore your knowledge network visually"
+sidebarTitle: "Graph View"
+description: "The graph view renders nodes and relations as an interactive force-directed canvas with zoom, pan, drag, type filtering, and click-to-inspect navigation."
+---
+
+The graph view is BaBel+'s interactive canvas for exploring your knowledge network. It renders every node as a colored shape and every qualifying relation as a weighted edge, using a real-time force-directed physics simulation that runs continuously in the browser. Nodes repel each other like charged particles, connected nodes are pulled together by springs, and the whole system finds an equilibrium that naturally clusters related content.
+
+## Navigation controls
+
+<CardGroup cols={2}>
+  <Card title="Pan" icon="hand">
+    Click and drag on the **background** (not on a node) to pan the camera. The view moves in the direction you drag.
+  </Card>
+  <Card title="Zoom" icon="magnifying-glass">
+    Scroll the **mouse wheel** to zoom in or out. The scale range is `0.1×` to `5.0×`, and the zoom is centred on the cursor position.
+  </Card>
+  <Card title="Drag nodes" icon="arrows-up-down-left-right">
+    Click and drag **any node** to reposition it manually. Its velocity is zeroed while you hold it, so it stays exactly where you drop it until the simulation nudges it again.
+  </Card>
+  <Card title="Inspect" icon="arrow-pointer">
+    **Click** a node (without dragging more than 5 px) to navigate to its Node Detail page. If the graph is scoped to a list, the `?listId` parameter is forwarded automatically.
+  </Card>
+  <Card title="Search" icon="magnifying-glass-plus">
+    Type in the **search box** above the canvas to filter nodes by title. A dropdown lists all matches. Use **↑ / ↓** arrow keys to move through the list and **Enter** to fly the camera to the selected node at 2.5× zoom.
+  </Card>
+  <Card title="Hover tooltip" icon="circle-info">
+    Hover over any node to see its title, type, and author (if set) displayed in the status bar above the canvas.
+  </Card>
+</CardGroup>
+
+## Visual encoding
+
+### Node shapes
+
+| Shape | Meaning |
+|---|---|
+| **Filled circle** (radius 14 px) | Node status is `pendiente`, `en_progreso`, or `abandonado` |
+| **Small red square** (6 × 6 px, color `#e53935`) | Node status is `terminado` |
+
+Completed nodes render as small squares so they visually recede from the active parts of your graph. This lets in-progress content stay visually prominent even in large libraries.
+
+### Node colors by type
+
+```
+libro      →  #4a90d9  (steel blue)
+pelicula   →  #50c878  (emerald green)
+articulo   →  #4a90d9  (steel blue)
+video      →  #9b59b6  (amethyst purple)
+curso      →  #9b59b6  (amethyst purple)
+videojuego →  #e67e22  (carrot orange)
+```
+
+### Edge rendering
+
+- **Opacity** — calculated as `0.15 + weight × 0.35`. A relation with `weight = 1.0` renders at `0.50` opacity; one with `weight = 0.7` (the minimum) renders at `0.395`.
+- **Stroke width** — calculated as `1 + weight × 2` pixels. Maximum thickness at `weight = 1.0` is 3 px.
+- **Minimum weight filter** — only edges with `weight ≥ 0.7` (`MIN_RELATION_WEIGHT`) are included in the graph at all. Weaker relations are fetched from the API but silently excluded from the canvas.
+
+## Type filter
+
+The legend row beneath the search box shows a colored pill for each of the six node types. Click any pill to toggle that type:
+
+- **Visible** — nodes of that type and all edges connecting them are drawn normally.
+- **Hidden** — nodes of that type are removed from the canvas; any edge whose source **or** target belongs to a hidden type is also hidden.
+
+The status bar updates in real time to show `Nodos: X/Y | Aristas: A/B` where X and A are the currently visible counts and Y and B are the totals.
+
+<Tip>
+  For large graphs, use the type filter to reduce visual noise. If you are exploring your film collection, hide `libro`, `articulo`, `video`, `curso`, and `videojuego` to see only `pelicula` nodes and their connections.
+</Tip>
+
+## Force simulation
+
+The layout engine runs a custom force-directed simulation on every animation frame. The forces applied are:
+
+<Tabs>
+  <Tab title="Center pull">
+    Every node is weakly attracted to the center of the canvas (`centerForce = 0.001`). This prevents the graph from drifting off-screen over time.
+  </Tab>
+  <Tab title="Repulsion">
+    Every pair of nodes repels each other with an inverse-square force (`repulsion = 5 000`). This spreads unconnected nodes apart so they do not overlap.
+
+    ```
+    force = 5000 / distance²
+    ```
+  </Tab>
+  <Tab title="Attraction (spring)">
+    For each edge, the two connected nodes are attracted toward an ideal separation of **100 px** (`attraction = 0.005`). Nodes that are closer than 100 px are pushed apart; nodes farther than 100 px are pulled together.
+
+    ```
+    force = (distance − 100) × 0.005
+    ```
+  </Tab>
+  <Tab title="Damping">
+    All velocities are multiplied by `damping = 0.85` each frame, causing the simulation to gradually settle. `terminado` nodes receive additional damping of `0.2×` on top of the base damping, so completed content settles into a resting position quickly and stays out of the way.
+  </Tab>
+</Tabs>
+
+The simulation runs indefinitely while the graph view is mounted. Dragging a node zeroes its velocity, which lets you manually pin it to a position — though it will slowly drift again as neighboring nodes shift.
+
+## Scoping to a list
+
+Append `?listId=<id>` to the graph URL to restrict the canvas to the nodes belonging to a specific list:
+
+```
+/graph?listId=x7k2
+```
+
+This is the primary way to create a **focused subgraph** — a smaller, denser view of thematically related content. The simulation runs on the filtered node set only, so the layout will be tighter and easier to read than the full library view.
+
+<Note>
+  The graph's header stats reflect the filtered counts when a `listId` is active. For example: `Nodos: 12 | Aristas: 8` means 12 of your nodes belong to this list and 8 relations connect nodes within it.
+</Note>
+
+---
+
+## See also
+
+- [Lists](/concepts/lists) — how to create and manage the named collections that power list-scoped graphs
+- [Relations](/concepts/relations) — the typed edges that form the graph's edge layer, including the weight threshold that controls visibility

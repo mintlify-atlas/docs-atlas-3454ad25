@@ -1,0 +1,222 @@
+---
+title: "REST API endpoints for AI classification — BaBel+ API reference"
+sidebarTitle: "AI"
+description: "POST /api/ai/classify and POST /api/ai/smart-add classify free text using Groq's llama-3.1-8b-instant and optionally persist the results."
+---
+
+The AI endpoints wrap Groq's `llama-3.1-8b-instant` model for content classification. Both endpoints accept a free-text description of any content (book, film, article, course, video, or video game) and return a structured node object alongside suggested relations to nodes that already exist in your library. The key difference between the two endpoints is persistence: `classify` is read-only and never writes to the database, while `smart-add` classifies and immediately persists both the node and any matched relations in a single call.
+
+---
+
+## POST /api/ai/classify
+
+Classify free text and receive a suggested node with relation recommendations — without writing anything to the database. Use this endpoint to preview what the AI would create before committing.
+
+### Request body
+
+<ParamField body="text" type="string" required>
+  Free-text description of the content to classify. The model extracts title, type, author, year, tags, and a short summary from this input. Maximum 10,000 characters.
+</ParamField>
+
+<ParamField body="typeHint" type="string">
+  If provided, the model is instructed to use exactly this node type instead of inferring it. Must be one of: `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego`.
+</ParamField>
+
+### Response
+
+Returns `200 OK` with a JSON object containing the classified node and suggested relations.
+
+<ResponseField name="node" type="object">
+  The AI-classified node structure.
+
+  <Expandable title="node fields">
+    <ResponseField name="node.title" type="string">
+      Extracted title of the content.
+    </ResponseField>
+    <ResponseField name="node.type" type="string">
+      Inferred or hinted node type. One of: `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego`.
+    </ResponseField>
+    <ResponseField name="node.description" type="string | null">
+      One-sentence summary extracted from the input, or `null` if none could be determined.
+    </ResponseField>
+    <ResponseField name="node.status" type="string">
+      Always `"pendiente"` — AI-created nodes default to the pending status.
+    </ResponseField>
+    <ResponseField name="node.priority" type="string">
+      Always `"media"` — AI-created nodes default to medium priority.
+    </ResponseField>
+    <ResponseField name="node.tags" type="string[]">
+      Array of extracted keywords, concepts, and thematic labels.
+    </ResponseField>
+    <ResponseField name="node.author" type="string | null">
+      Detected author or director, or `null`.
+    </ResponseField>
+    <ResponseField name="node.year" type="number | null">
+      Publication or release year if mentioned in the input, or `null`.
+    </ResponseField>
+    <ResponseField name="node.link" type="string | null">
+      Always `null` — the AI does not generate URLs.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="relations" type="object[]">
+  Suggested directed edges to nodes that already exist in the library.
+
+  <Expandable title="relations fields">
+    <ResponseField name="relations[].targetTitle" type="string">
+      Exact title of the existing node to connect to. The value matches an existing node's title (case-insensitive).
+    </ResponseField>
+    <ResponseField name="relations[].type" type="string">
+      Suggested relation type. One of: `es_autor_de`, `dirigio`, `trata_sobre`, `pertenece_a`, `influyo_a`, `critica_a`, `inspiro`, `ocurre_en`, `similar_a`.
+    </ResponseField>
+    <ResponseField name="relations[].weight" type="number">
+      Suggested weight between `0.0` and `1.0`. The model assigns higher weights for stronger thematic overlap (e.g., `1.0` for three or more shared tags, `0.7` for two, `0.4` for one).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl -X POST http://localhost:3000/api/ai/classify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Capital by Karl Marx, 1867. The foundational critique of capitalist political economy.",
+    "typeHint": "libro"
+  }'
+```
+
+```json
+{
+  "node": {
+    "title": "El Capital",
+    "type": "libro",
+    "description": "Crítica de la economía política capitalista.",
+    "status": "pendiente",
+    "priority": "media",
+    "tags": ["marxismo", "economía", "capitalismo", "filosofía"],
+    "author": "Karl Marx",
+    "year": 1867,
+    "link": null
+  },
+  "relations": [
+    {
+      "targetTitle": "Karl Marx",
+      "type": "es_autor_de",
+      "weight": 1.0
+    },
+    {
+      "targetTitle": "Materialismo Histórico",
+      "type": "trata_sobre",
+      "weight": 0.7
+    }
+  ]
+}
+```
+
+---
+
+## POST /api/ai/smart-add
+
+Classify free text and immediately persist the resulting node and relations to the database in a single call. Relations are only created when the suggested `targetTitle` exactly matches an existing node's title (case-insensitive comparison). Suggestions pointing to non-existent nodes are silently skipped.
+
+### Request body
+
+Same as `POST /api/ai/classify`:
+
+<ParamField body="text" type="string" required>
+  Free-text description of the content to classify and save. Maximum 10,000 characters.
+</ParamField>
+
+<ParamField body="typeHint" type="string">
+  Optional node type override. One of: `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego`.
+</ParamField>
+
+### Response
+
+Returns `201 Created` with the persisted node and the relations that were successfully created.
+
+<ResponseField name="node" type="Node">
+  The fully persisted `Node` object, including its generated UUID, `createdAt`, `updatedAt`, and all database fields (e.g., `localFile`, `rating`).
+</ResponseField>
+
+<ResponseField name="relations" type="object[]">
+  Array of `CreatedRelation` objects for each relation that was matched and written to the database.
+
+  <Expandable title="CreatedRelation fields">
+    <ResponseField name="relations[].id" type="string">
+      UUID of the created relation record.
+    </ResponseField>
+    <ResponseField name="relations[].sourceId" type="string">
+      UUID of the newly created node.
+    </ResponseField>
+    <ResponseField name="relations[].targetId" type="string">
+      UUID of the matched existing target node.
+    </ResponseField>
+    <ResponseField name="relations[].type" type="string">
+      Relation type as determined by the model.
+    </ResponseField>
+    <ResponseField name="relations[].weight" type="number">
+      Relation weight as determined by the model.
+    </ResponseField>
+    <ResponseField name="relations[].createdAt" type="string">
+      ISO 8601 timestamp of relation creation.
+    </ResponseField>
+    <ResponseField name="relations[].targetTitle" type="string">
+      Title of the matched target node — included for convenience so callers do not need a separate lookup.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```bash
+curl -X POST http://localhost:3000/api/ai/smart-add \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Capital by Karl Marx, 1867. The foundational critique of capitalist political economy, analyzing commodity, value, surplus value, and capital accumulation.",
+    "typeHint": "libro"
+  }'
+```
+
+```json
+{
+  "node": {
+    "id": "new-uuid",
+    "title": "El Capital",
+    "type": "libro",
+    "description": "Crítica de la economía política capitalista.",
+    "status": "pendiente",
+    "priority": "media",
+    "tags": "[\"marxismo\",\"economía\",\"capitalismo\"]",
+    "author": "Karl Marx",
+    "year": 1867,
+    "link": null,
+    "localFile": null,
+    "rating": null,
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-15T10:30:00.000Z"
+  },
+  "relations": [
+    {
+      "id": "relation-uuid",
+      "sourceId": "new-uuid",
+      "targetId": "existing-marx-uuid",
+      "type": "es_autor_de",
+      "weight": 1.0,
+      "createdAt": "2024-01-15T10:30:00.000Z",
+      "targetTitle": "Karl Marx"
+    }
+  ]
+}
+```
+
+---
+
+## Error responses
+
+| Status | Condition |
+|---|---|
+| `400` | `text` is missing, empty, or exceeds 10,000 characters |
+| `500` | The Groq API returned an error or the model response could not be parsed as valid JSON |
+
+<Warning>
+  `smart-add` does not deduplicate. Calling it twice with the same input creates two separate nodes with identical content. Use `POST /api/ai/classify` first to preview the result, then call `smart-add` only when you are ready to persist — or search for the node with `GET /api/search` before adding to avoid duplicates.
+</Warning>

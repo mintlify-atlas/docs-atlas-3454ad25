@@ -1,47 +1,130 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get started with BaBel+ in five minutes"
+sidebarTitle: "Quickstart"
+description: "Run BaBel+ locally with PostgreSQL and a Groq API key. Covers cloning, environment setup, database migration, and your first node creation."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
+By the end of this guide you will have a fully running local instance of BaBel+ with its seeded philosophy and film graph, the React SPA hot-reloading in the browser, and a working API ready to accept your first node — all from a single `npm run dev` command.
 
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
+<Note>
+**Prerequisites**
 
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+- **Node.js ≥ 18** — BaBel+ uses native ESM and `crypto.randomUUID()`; older versions are not supported.
+- **PostgreSQL** — a local installation or a free cloud instance (e.g. Render, Supabase, or Neon) works equally well. You need a connection string of the form `postgresql://user:password@host:5432/dbname`.
+- **Groq API key** — free tier is sufficient. Obtain one at [https://console.groq.com](https://console.groq.com).
+</Note>
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Clone the repository">
+    Clone the BaBel+ monorepo from GitHub and move into the project root:
 
     ```bash
-    npm install your-package
+    git clone https://github.com/DrDigett/Babel.git && cd Babel
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+
+  <Step title="Install dependencies">
+    BaBel+ uses **npm workspaces**. A single install from the monorepo root resolves all packages — `@babel-plus/server`, `@babel-plus/client`, and `@babel-plus/shared` — at once:
 
     ```bash
-    your-cli init
+    npm install
     ```
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+
+  <Step title="Configure environment">
+    The server reads its configuration from `packages/server/.env`. Copy the example file and fill in your values:
 
     ```bash
-    your-cli start
+    cp packages/server/.env.example packages/server/.env
     ```
+
+    Then open `packages/server/.env` and set at minimum `DATABASE_URL` and `GROQ_API_KEY`:
+
+    ```ini packages/server/.env
+    DATABASE_URL=postgresql://user:password@localhost:5432/babel
+    GROQ_API_KEY=gsk_...
+    PORT=3000
+    CORS_ORIGIN=*
+    NODE_ENV=development
+    ```
+
+    | Variable | Required | Description |
+    |----------|----------|-------------|
+    | `DATABASE_URL` | ✅ | PostgreSQL connection string |
+    | `GROQ_API_KEY` | ✅ | Groq API key for AI classification |
+    | `PORT` | Optional | HTTP port for the Hono server (default `3000`) |
+    | `CORS_ORIGIN` | Optional | Allowed CORS origin (default `*`) |
+    | `NODE_ENV` | Optional | Set to `production` when serving the built SPA |
+  </Step>
+
+  <Step title="Run the development server">
+    Start both the Hono API server and the Vite client dev server concurrently with a single command from the monorepo root:
+
+    ```bash
+    npm run dev
+    ```
+
+    This runs `tsx watch src/index.ts` for the server and `vite` for the client in parallel (via `concurrently`). On first boot, the server automatically:
+
+    1. Runs all pending SQL migrations to create the `nodes`, `relations`, `lists`, and `list_nodes` tables.
+    2. Detects an empty database and runs the seed script (≈ 20 philosophy and film nodes with pre-built relations).
+
+    Once both processes are ready you will see output similar to:
+
+    ```
+    [server] BaBel+ API running on http://0.0.0.0:3000
+    [client]   ➜  Local:   http://localhost:5173/
+    ```
+
+    Open [http://localhost:5173](http://localhost:5173) in your browser to explore the graph.
+  </Step>
+
+  <Step title="Create your first node">
+    With the server running, add a book node via the REST API:
+
+    ```bash
+    curl -X POST http://localhost:3000/api/nodes \
+      -H "Content-Type: application/json" \
+      -d '{
+        "title": "The Structure of Scientific Revolutions",
+        "type": "libro",
+        "author": "Thomas S. Kuhn",
+        "year": 1962,
+        "status": "pendiente",
+        "priority": "alta",
+        "tags": ["ciencia", "filosofia", "epistemologia"]
+      }'
+    ```
+
+    A successful request returns `201 Created` with the persisted node object, including its generated `id`, `createdAt`, and `updatedAt` timestamps. The node will immediately appear in both the list view and the force-directed graph canvas in your browser.
+
+    **Field reference:**
+
+    | Field | Type | Values |
+    |-------|------|--------|
+    | `title` | string | Required. Display name of the node. |
+    | `type` | string | `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego` |
+    | `status` | string | `pendiente`, `en_progreso`, `terminado` |
+    | `priority` | string | `baja`, `media`, `alta` |
+    | `author` | string | Optional. Author or creator name. |
+    | `year` | number | Optional. Publication or release year. |
+    | `tags` | string[] | Optional. Free-form classification labels. |
+    | `link` | string | Optional. External URL. |
+    | `rating` | number | Optional. Personal rating (1–5). |
   </Step>
 </Steps>
 
 <Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
-
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+**Seed data included.** When the server starts against an empty database it automatically inserts ~20 interconnected philosophy and film nodes — including works by Marx, Hegel, Bakunin, Fanon, and Debord, plus the film *La Batalla de Argel* — along with 19 pre-built relations. This gives you a live graph to explore immediately without entering data by hand. Run `npm run db:seed` at any time to re-seed manually.
 </Tip>
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Nodes & Relations" icon="diagram-project" href="/concepts/nodes">
+    Deep-dive into node types, relation semantics, and how the graph data model works.
+  </Card>
+  <Card title="AI Smart Add" icon="microchip" href="/ai/smart-add">
+    Let Groq classify and connect a new node automatically from a single text prompt.
+  </Card>
+</CardGroup>

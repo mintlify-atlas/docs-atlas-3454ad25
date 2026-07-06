@@ -1,0 +1,96 @@
+---
+title: "AI classification with Groq and llama-3.1-8b-instant"
+sidebarTitle: "AI Overview"
+description: "BaBel+ uses Groq's llama-3.1-8b-instant model to classify content, extract metadata, and suggest semantic relations to your existing nodes."
+---
+
+BaBel+'s AI layer uses Groq's `llama-3.1-8b-instant` model via the OpenAI-compatible API. When you describe a book, film, article, or other content item in plain text, the model extracts structured metadata — title, type, description, tags, author, and year — and suggests which nodes already in your graph it should be connected to. The result is a typed node and a set of weighted semantic relations, ready to be committed to your database.
+
+## How it works
+
+BaBel+ exposes two AI endpoints on the server. Both run the same `classifyAndSuggest` function under the hood but differ in whether they persist results.
+
+<Steps>
+  <Step title="POST /api/ai/classify — dry run">
+    Sends your text (and optional `typeHint`) to the model, receives a classified node and suggested relations, and **returns them without writing anything to the database**. Use this endpoint to preview what BaBel+ would create before committing, or to drive a confirmation UI.
+  </Step>
+  <Step title="POST /api/ai/smart-add — full write">
+    Runs the same classification pipeline and then **persists the node and all qualifying relations in a single request**. Relations are resolved against the database by exact title match (case-insensitive). Returns the created node and every relation that was successfully inserted.
+  </Step>
+</Steps>
+
+## What the model receives
+
+Every call to `classifyAndSuggest` builds a prompt that contains three pieces of information:
+
+- **The user's free-text description** — trimmed and capped at 10 000 characters before being forwarded to the model.
+- **An optional `typeHint`** — when present, an explicit instruction is prepended to the prompt: *"The user manually selected the type `<typeHint>`. You MUST use exactly that type."* This overrides the model's own inference.
+- **The full list of existing nodes** — queried live from the database. Each entry includes the node's title, type, description (if any), and tags (if any), formatted so the model can reason about thematic overlap before suggesting relations.
+
+## What the model returns
+
+The model is instructed to respond with a single JSON object and nothing else. The expected structure is:
+
+```json
+{
+  "node": {
+    "title": "string",
+    "type": "libro | pelicula | articulo | video | curso | videojuego",
+    "description": "string | null",
+    "status": "pendiente",
+    "priority": "media",
+    "tags": ["string"],
+    "author": "string | null",
+    "year": "number | null",
+    "link": null
+  },
+  "relations": [
+    {
+      "targetTitle": "exact title of existing node",
+      "type": "relation type",
+      "weight": 1.0
+    }
+  ]
+}
+```
+
+`status` is always initialised to `pendiente` and `priority` to `media`. The model never sets `link` — that field remains `null` until you update the node manually.
+
+## Relation suggestion logic
+
+The prompt instructs the model to follow these rules when building the `relations` array:
+
+- **Exact title match required.** `targetTitle` must match an existing node's title exactly as listed in the prompt. The server resolves relations with a case-insensitive `LOWER()` comparison, but the model itself must not invent titles.
+- **`similar_a` is type-scoped.** This relation type may only be used between nodes of the same type (e.g. `libro` → `libro`). The model is explicitly forbidden from creating `similar_a` across types.
+- **Tag overlap drives `trata_sobre` weight.** When the new node shares tags with an existing node, the model generates a `trata_sobre` relation whose weight reflects the degree of overlap:
+  - `1.0` — three or more shared tags
+  - `0.7` — two shared tags
+  - `0.4` — one shared tag
+- **Minimum weight for graph visibility.** Only relations with `weight >= 0.7` (`MIN_RELATION_WEIGHT`) are rendered in the graph view. Relations with a weight of `0.4` are still stored but remain hidden at the default zoom level.
+
+The nine available relation types are: `es_autor_de`, `dirigio`, `trata_sobre`, `pertenece_a`, `influyo_a`, `critica_a`, `inspiro`, `ocurre_en`, `similar_a`.
+
+## Required configuration
+
+The AI layer requires one environment variable on the server:
+
+```bash
+GROQ_API_KEY=gsk_...
+```
+
+The server calls `required('GROQ_API_KEY')` at startup. If the key is missing or empty, the process throws immediately with a descriptive error before accepting any connections. Get a free key at [https://console.groq.com](https://console.groq.com).
+
+<Note>
+  The model receives the **full list of existing node titles, types, descriptions, and tags** on every call. This context grows linearly with the number of nodes in your graph. For small to medium libraries (up to a few hundred nodes) this is seamless. For very large graphs with thousands of nodes, you may want to trim the context — for example by limiting the node list to the most recently updated nodes or to nodes whose tags overlap with the input — to avoid hitting the model's context window or degrading response quality.
+</Note>
+
+## Endpoints at a glance
+
+<CardGroup cols={2}>
+  <Card title="Smart Add" icon="bolt" href="/ai/smart-add">
+    One-shot: classify free text, create the node, and insert relations — all in a single `POST /api/ai/smart-add` request.
+  </Card>
+  <Card title="Classify" icon="magnifying-glass" href="/ai/classify">
+    Dry run: preview the AI's suggestions with `POST /api/ai/classify` before writing anything to the database.
+  </Card>
+</CardGroup>

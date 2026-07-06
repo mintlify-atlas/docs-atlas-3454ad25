@@ -1,0 +1,357 @@
+---
+title: "REST API endpoints for nodes — BaBel+ API reference"
+sidebarTitle: "Nodes"
+description: "CRUD endpoints for BaBel+ nodes. Create, list, retrieve, update, and delete content items with type, status, priority, tags, author, year, and rating fields."
+---
+
+Nodes are the primary resource in BaBel+. They represent individual content items — books, films, articles, videos, courses, or video games — and carry rich metadata such as status, priority, tags, author, and year. Every other resource (relations, list memberships) references nodes by their UUID `id`. These endpoints let you create, retrieve, update, and delete nodes programmatically.
+
+## Node TypeScript interface
+
+The canonical shape of a node as defined in the shared package:
+
+```typescript
+// packages/shared/src/types.ts
+
+export type NodeType     = 'libro' | 'pelicula' | 'articulo' | 'video' | 'curso' | 'videojuego'
+export type NodeStatus   = 'pendiente' | 'en_progreso' | 'terminado' | 'abandonado'
+export type NodePriority = 'alta' | 'media' | 'baja'
+
+export interface Node {
+  id:          string          // UUID v4, auto-generated
+  title:       string
+  type:        NodeType
+  description: string | null
+  status:      NodeStatus
+  priority:    NodePriority
+  tags:        string | null   // JSON-serialised string[] stored as TEXT
+  author:      string | null
+  year:        number | null
+  link:        string | null
+  localFile:   string | null
+  rating:      number | null
+  createdAt:   string          // ISO 8601
+  updatedAt:   string          // ISO 8601
+}
+```
+
+<Note>
+  `tags` is stored in the database as a JSON-serialised string (e.g. `"[\"filosofia\",\"posmodernismo\"]"`). The API returns it in that form; parse it with `JSON.parse()` on the client if you need an array.
+</Note>
+
+---
+
+## GET /api/nodes
+
+List all nodes. Optionally filter by `type` and/or `status` using query parameters. Results are returned in insertion order (no guaranteed sort unless combined with client-side sorting).
+
+### Query parameters
+
+<ParamField query="type" type="string" optional>
+  Filter by node type. Must be one of: `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego`. Omit to return all types.
+</ParamField>
+
+<ParamField query="status" type="string" optional>
+  Filter by lifecycle status. Must be one of: `pendiente`, `en_progreso`, `terminado`, `abandonado`. Omit to return all statuses.
+</ParamField>
+
+### Response
+
+Returns a JSON array of `Node` objects. Returns an empty array `[]` when no nodes match the filter.
+
+<ResponseField name="(array)" type="Node[]">
+  Array of node objects. See the Node interface above for field definitions.
+</ResponseField>
+
+### Example
+
+```bash
+# List all nodes
+curl http://localhost:3000/api/nodes
+
+# Filter to pending books only
+curl "http://localhost:3000/api/nodes?type=libro&status=pendiente"
+```
+
+```json
+[
+  {
+    "id": "3f2a1b4c-...",
+    "title": "Simulacra and Simulation",
+    "type": "libro",
+    "description": null,
+    "status": "pendiente",
+    "priority": "media",
+    "tags": "[\"filosofia\",\"posmodernismo\",\"simulacro\"]",
+    "author": "Jean Baudrillard",
+    "year": 1981,
+    "link": null,
+    "localFile": null,
+    "rating": null,
+    "createdAt": "2024-01-15T10:00:00.000Z",
+    "updatedAt": "2024-01-15T10:00:00.000Z"
+  }
+]
+```
+
+---
+
+## GET /api/nodes/:id
+
+Retrieve a single node by its UUID.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The UUID of the node to retrieve.
+</ParamField>
+
+### Response
+
+<ResponseField name="id" type="string">UUID of the node.</ResponseField>
+<ResponseField name="title" type="string">Display title.</ResponseField>
+<ResponseField name="type" type="NodeType">Content type: `libro`, `pelicula`, `articulo`, `video`, `curso`, or `videojuego`.</ResponseField>
+<ResponseField name="description" type="string | null">Long-form description, or `null` if not set.</ResponseField>
+<ResponseField name="status" type="NodeStatus">Lifecycle status: `pendiente`, `en_progreso`, `terminado`, or `abandonado`.</ResponseField>
+<ResponseField name="priority" type="NodePriority">Priority level: `alta`, `media`, or `baja`.</ResponseField>
+<ResponseField name="tags" type="string | null">JSON-serialised array of tag strings, or `null`.</ResponseField>
+<ResponseField name="author" type="string | null">Author or creator name, or `null`.</ResponseField>
+<ResponseField name="year" type="number | null">Publication or release year, or `null`.</ResponseField>
+<ResponseField name="link" type="string | null">External URL, or `null`.</ResponseField>
+<ResponseField name="localFile" type="string | null">Path to a local file, or `null`.</ResponseField>
+<ResponseField name="rating" type="number | null">Numeric rating, or `null`.</ResponseField>
+<ResponseField name="createdAt" type="string">ISO 8601 creation timestamp.</ResponseField>
+<ResponseField name="updatedAt" type="string">ISO 8601 last-update timestamp.</ResponseField>
+
+### Errors
+
+| Status | Body | Condition |
+|--------|------|-----------|
+| `404` | `{ "error": "not found" }` | No node with the given ID exists |
+
+### Example
+
+```bash
+curl http://localhost:3000/api/nodes/3f2a1b4c-1234-5678-abcd-ef0123456789
+```
+
+---
+
+## POST /api/nodes
+
+Create a new node. The server auto-generates a UUID `id` and sets both `createdAt` and `updatedAt` to the current UTC time. Returns the created node with status `201 Created`.
+
+### Request body
+
+<ParamField body="title" type="string" required>
+  Display title of the node. Maximum 500 characters. Whitespace is trimmed automatically.
+</ParamField>
+
+<ParamField body="type" type="NodeType" required>
+  Content type. Must be one of: `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego`.
+</ParamField>
+
+<ParamField body="description" type="string" optional>
+  Long-form description or notes. Maximum 5 000 characters. Silently truncated to 5 000 if longer.
+</ParamField>
+
+<ParamField body="status" type="NodeStatus" optional>
+  Lifecycle status. Default: `pendiente`. One of: `pendiente`, `en_progreso`, `terminado`, `abandonado`.
+</ParamField>
+
+<ParamField body="priority" type="NodePriority" optional>
+  Priority level. Default: `media`. One of: `alta`, `media`, `baja`.
+</ParamField>
+
+<ParamField body="tags" type="string[]" optional>
+  Array of tag strings. Maximum 50 items; extra items are silently dropped.
+</ParamField>
+
+<ParamField body="author" type="string" optional>
+  Author or creator name. Maximum 300 characters.
+</ParamField>
+
+<ParamField body="year" type="number" optional>
+  Publication or release year as an integer. Must be in the range **−5 000 to 3 000**.
+</ParamField>
+
+<ParamField body="link" type="string" optional>
+  External URL. Maximum 2 000 characters.
+</ParamField>
+
+<ParamField body="localFile" type="string" optional>
+  Path to a local file on the server's filesystem. Maximum 500 characters.
+</ParamField>
+
+<ParamField body="rating" type="number" optional>
+  Numeric rating. No enforced range — use any integer scale that suits your workflow.
+</ParamField>
+
+### Response
+
+Returns `201 Created` with the full `Node` object, including the generated `id`, `createdAt`, and `updatedAt` fields.
+
+### Errors
+
+| Status | Body | Condition |
+|--------|------|-----------|
+| `400` | `{ "error": "title is required" }` | `title` is missing, empty, or not a string |
+| `400` | `{ "error": "title too long (max 500)" }` | `title` exceeds 500 characters |
+| `400` | `{ "error": "invalid type, must be one of: ..." }` | `type` is not a valid `NodeType` |
+| `400` | `{ "error": "invalid status, must be one of: ..." }` | `status` is not a valid `NodeStatus` |
+| `400` | `{ "error": "invalid priority, must be one of: ..." }` | `priority` is not a valid `NodePriority` |
+| `400` | `{ "error": "invalid year" }` | `year` is not a number or is outside −5 000 – 3 000 |
+
+### Example
+
+```bash
+curl -X POST http://localhost:3000/api/nodes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Simulacra and Simulation",
+    "type": "libro",
+    "author": "Jean Baudrillard",
+    "year": 1981,
+    "status": "pendiente",
+    "priority": "media",
+    "tags": ["filosofia", "posmodernismo", "simulacro"]
+  }'
+```
+
+<Expandable title="201 response">
+```json
+{
+  "id": "3f2a1b4c-1234-5678-abcd-ef0123456789",
+  "title": "Simulacra and Simulation",
+  "type": "libro",
+  "description": null,
+  "status": "pendiente",
+  "priority": "media",
+  "tags": "[\"filosofia\",\"posmodernismo\",\"simulacro\"]",
+  "author": "Jean Baudrillard",
+  "year": 1981,
+  "link": null,
+  "localFile": null,
+  "rating": null,
+  "createdAt": "2024-06-01T12:00:00.000Z",
+  "updatedAt": "2024-06-01T12:00:00.000Z"
+}
+```
+</Expandable>
+
+---
+
+## PUT /api/nodes/:id
+
+Partially update an existing node. Only fields present in the request body are changed — omitted fields retain their current values. `updatedAt` is always refreshed to the current UTC time regardless of which fields are updated.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The UUID of the node to update.
+</ParamField>
+
+### Request body
+
+All fields are optional. Include only the fields you want to change. The same constraints from `POST /api/nodes` apply to each field.
+
+<ParamField body="title" type="string" optional>
+  New title. Trimmed and truncated to 500 characters. Cannot be set to an empty string.
+</ParamField>
+
+<ParamField body="type" type="NodeType" optional>
+  New content type. One of: `libro`, `pelicula`, `articulo`, `video`, `curso`, `videojuego`.
+</ParamField>
+
+<ParamField body="description" type="string | null" optional>
+  New description. Pass `null` to clear. Truncated to 5 000 characters.
+</ParamField>
+
+<ParamField body="status" type="NodeStatus" optional>
+  New lifecycle status. One of: `pendiente`, `en_progreso`, `terminado`, `abandonado`.
+</ParamField>
+
+<ParamField body="priority" type="NodePriority" optional>
+  New priority. One of: `alta`, `media`, `baja`.
+</ParamField>
+
+<ParamField body="tags" type="string[]" optional>
+  Replacement tag array. Replaces the entire tags value (not merged). Pass an empty array `[]` to clear.
+</ParamField>
+
+<ParamField body="author" type="string | null" optional>
+  New author. Pass `null` to clear. Truncated to 300 characters.
+</ParamField>
+
+<ParamField body="year" type="number | null" optional>
+  New year. Pass `null` to clear. Range −5 000 to 3 000.
+</ParamField>
+
+<ParamField body="link" type="string | null" optional>
+  New URL. Pass `null` to clear. Truncated to 2 000 characters.
+</ParamField>
+
+<ParamField body="localFile" type="string | null" optional>
+  New local file path. Pass `null` to clear. Truncated to 500 characters.
+</ParamField>
+
+<ParamField body="rating" type="number | null" optional>
+  New rating. Pass `null` to clear.
+</ParamField>
+
+### Response
+
+Returns `200 OK` with the full updated `Node` object as re-fetched from the database.
+
+### Errors
+
+| Status | Body | Condition |
+|--------|------|-----------|
+| `400` | `{ "error": "title cannot be empty" }` | `title` is provided but is an empty or blank string |
+| `404` | `{ "error": "not found" }` | No node with the given ID exists |
+
+### Example
+
+```bash
+# Mark a node as finished and add a rating
+curl -X PUT http://localhost:3000/api/nodes/3f2a1b4c-1234-5678-abcd-ef0123456789 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "terminado",
+    "rating": 9
+  }'
+```
+
+<Tip>
+  To clear an optional field, pass it explicitly as `null`. Omitting a field leaves it unchanged.
+</Tip>
+
+---
+
+## DELETE /api/nodes/:id
+
+Delete a node permanently. The database schema uses `ON DELETE CASCADE` on both the `relations` table and the `list_nodes` junction table, so all relations and list memberships that reference this node are automatically removed in the same operation.
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The UUID of the node to delete.
+</ParamField>
+
+### Response
+
+Returns `200 OK` with a confirmation object. The endpoint does not return a `404` if the node does not exist — the delete is a no-op and still returns success.
+
+```json
+{ "success": true }
+```
+
+### Example
+
+```bash
+curl -X DELETE http://localhost:3000/api/nodes/3f2a1b4c-1234-5678-abcd-ef0123456789
+```
+
+<Note>
+  Deletion is irreversible. All relations connecting this node to other nodes, and all list memberships for this node, are cascade-deleted automatically. There is no soft-delete or recycle bin in the current version.
+</Note>
